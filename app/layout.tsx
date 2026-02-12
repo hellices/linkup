@@ -7,7 +7,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "LinkUp — Map-First Collaboration",
-  description: "3문장 포스트 + 지도 기반 탐색 + MCP 추천 + 협업 매칭",
+  description: "3-sentence posts + map-based discovery + MCP recommendations + collaboration matching",
 };
 
 export default async function RootLayout({
@@ -18,7 +18,7 @@ export default async function RootLayout({
   const session = await auth();
 
   return (
-    <html lang="ko">
+    <html lang="en">
       <head>
         <script
           src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.js"

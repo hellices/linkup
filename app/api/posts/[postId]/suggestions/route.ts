@@ -30,12 +30,13 @@ export async function GET(
   } catch {
     // Full failure — graceful degrade
     return NextResponse.json({
+      m365: [],
       docs: [],
       issues: [],
       posts: [],
       actionHint: null,
       source: "mcp",
-      unavailableSources: ["docs", "issues", "posts"],
+      unavailableSources: ["m365", "docs", "issues", "posts"],
     });
   }
 }

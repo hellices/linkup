@@ -39,45 +39,35 @@ NEXT_PUBLIC_AZURE_MAPS_KEY=<Azure Maps Subscription Key>
 
 # Azure OpenAI (AI Foundry)
 AZURE_OPENAI_ENDPOINT=https://<resource-name>.openai.azure.com
-AZURE_OPENAI_API_KEY=<Azure OpenAI API Key (임베딩용)>
+AZURE_OPENAI_API_KEY=<Azure OpenAI API Key (for embeddings)>
 AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-4o-mini
 AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small
-
-# MCP Server
-MCP_SERVER_URL=http://localhost:3001/mcp
 ```
 
-## 3. Start MCP Server (separate terminal)
-
-```bash
-npx tsx mcp-server/index.ts
-# Runs on port 3001 by default
-# Exposes tools: search_docs, search_issues, search_posts, generate_action_hint
-```
-
-## 4. Start Development Server
+## 3. Start Development Server
 
 ```bash
 npm run dev
 # Opens http://localhost:3000
+# MCP server runs in-process (InMemoryTransport) — no separate process needed
 ```
 
-## 5. Demo Script (2 minutes)
+## 4. Demo Script (2 minutes)
 
 1. Open `http://localhost:3000` → Click "Sign in with Microsoft" → Entra ID login
 2. Map loads centered on default location (Redmond, WA)
 3. Click "+" FAB → Type 3-sentence post + select TTL (1min for demo) → Save
 4. New marker appears on map → Click marker
 5. Popup shows: post text, time remaining, **"Suggested via MCP"** with:
-   - Docs 추천 1~3개
-   - Issues 추천 0~2개
-   - 유사 Posts 0~5개 (AI Foundry semantic search)
-   - **Action Hint** 1줄 (예: "Docs 기반 해결 가능성이 높습니다 — Step 2를 먼저 확인하세요.")
-6. Use **search bar** → AI Foundry semantic search → 지도 영역 내 결과만 마커로 표시
+   - 1–3 Docs suggestions
+   - 0–2 Issues suggestions
+   - 0–5 similar Posts (AI Foundry semantic search)
+   - **Action Hint** one-line (e.g., "High likelihood of resolution based on Docs — check Step 2 first.")
+6. Use **search bar** → AI Foundry semantic search → only results within map area are displayed as markers
 7. Click "Join" → participant count updates
 8. Wait ~1 minute → refresh → marker disappears (TTL expired)
 
-## 6. Verify Acceptance Criteria
+## 5. Verify Acceptance Criteria
 
 | AC | How to verify |
 |----|---------------|
@@ -85,10 +75,10 @@ npm run dev
 | AC2 | Type 4+ sentences → save blocked (UI + API) |
 | AC3 | Post created → marker visible on map → click → popup |
 | AC4 | Interested/Join button → count updates |
-| AC5 | Popup shows "Suggested via MCP" with Docs+Posts (최소 2종) |
-| AC6 | Action Hint 1줄이 결과 상단에 표시됨 |
-| AC7 | 지도 검색 → semantic search → bbox 내 결과 마커 표시 |
-| AC8 | MCP 서버 중단 → "No suggestions available" 표시 |
+| AC5 | Popup shows "Suggested via MCP" with Docs+Posts (at least 2 categories) |
+| AC6 | Action Hint one-line displayed at top of results |
+| AC7 | Map search → semantic search → result markers displayed within bbox |
+| AC8 | On MCP connection failure → "No suggestions available" displayed |
 | AC9 | Wait for TTL → marker gone on refresh |
 | AC10 | Full flow completes in < 2 minutes |
 
@@ -96,8 +86,8 @@ npm run dev
 
 - **Map not rendering**: Check `NEXT_PUBLIC_AZURE_MAPS_KEY` is set correctly
 - **Auth redirect error**: Verify redirect URI in Entra portal matches exactly
-- **MCP suggestions empty**: Ensure MCP server is running on port 3001
-- **AI Foundry timeout**: Check `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY`; verify `az login` is valid
+- **MCP suggestions empty**: MCP runs in-process — check AI Foundry env vars are set
+- **AI Foundry timeout**: Check `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY`
 - **Embeddings fail**: Embeddings require API key auth (Entra ID not supported on v1 API route)
 - **Action Hint missing**: If gpt-4o-mini fails, hint area is hidden (graceful degrade)
 - **SQLite error**: Run `npm rebuild better-sqlite3` if native addon issues

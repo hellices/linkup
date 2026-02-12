@@ -71,7 +71,11 @@ export default function Home() {
 
   const handlePostCreated = useCallback(
     (newPost: PostSummary) => {
-      setPosts((prev) => [...prev, newPost]);
+      setPosts((prev) => {
+        // Avoid duplicate if already present
+        if (prev.some((p) => p.id === newPost.id)) return prev;
+        return [...prev, newPost];
+      });
       setShowCreateModal(false);
       setClickedCoords(null);
     },
@@ -119,32 +123,33 @@ export default function Home() {
             ? new Set(searchResult.posts.map((p) => p.id))
             : null
         }
+        currentUserId={session?.user?.id}
         onMapClick={handleMapClick}
         onViewportChange={handleViewportChange}
       />
 
       {/* Top bar: Search + Auth */}
-      <div className="absolute top-4 left-4 right-4 flex items-center gap-2 z-10">
+      <div className="absolute top-4 left-4 right-4 flex items-center gap-3 z-10">
         <SearchBar onSearch={handleSearch} onClear={handleClearSearch} />
         <AuthButton />
       </div>
 
       {/* Search result info */}
       {searchResult && (
-        <div className="absolute top-16 left-4 z-10 bg-white/90 backdrop-blur rounded-lg px-3 py-2 shadow text-sm">
-          <span className="font-medium">
-            {searchResult.posts.length}건 표시
+        <div className="absolute top-16 left-4 z-10 zenly-card px-4 py-2.5 text-sm zenly-bounce">
+          <span className="font-semibold text-purple-500">
+            ✨ {searchResult.posts.length} found
           </span>
           {searchResult.outOfBounds > 0 && (
-            <span className="text-gray-500 ml-2">
-              · 지도 밖 {searchResult.outOfBounds}건
+            <span className="text-gray-400 ml-2">
+              · {searchResult.outOfBounds} outside map
             </span>
           )}
           <button
             onClick={handleClearSearch}
-            className="ml-3 text-blue-600 hover:underline"
+            className="ml-3 text-pink-400 hover:text-pink-500 font-medium transition-colors"
           >
-            검색 초기화
+            Reset
           </button>
         </div>
       )}
@@ -156,8 +161,8 @@ export default function Home() {
             setClickedCoords(null);
             setShowCreateModal(true);
           }}
-          className="absolute bottom-8 right-8 z-10 w-14 h-14 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center text-3xl transition-colors"
-          title="Create a post"
+          className="absolute bottom-8 right-8 z-10 w-16 h-16 bg-gradient-to-br from-pink-400 to-purple-500 hover:from-pink-500 hover:to-purple-600 text-white rounded-full shadow-lg shadow-pink-300/40 flex items-center justify-center text-3xl transition-all active:scale-90"
+          title="New Post"
         >
           +
         </button>

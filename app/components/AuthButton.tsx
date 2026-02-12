@@ -8,7 +8,7 @@ export default function AuthButton() {
 
   if (status === "loading") {
     return (
-      <div className="bg-white/90 backdrop-blur rounded-lg px-3 py-2 shadow text-sm text-gray-400">
+      <div className="bg-white/95 backdrop-blur-xl rounded-full px-4 py-2.5 shadow-lg shadow-black/5 text-sm text-gray-300">
         ...
       </div>
     );
@@ -16,13 +16,16 @@ export default function AuthButton() {
 
   if (session) {
     return (
-      <div className="flex items-center gap-2 bg-white/90 backdrop-blur rounded-lg px-3 py-2 shadow">
-        <span className="text-sm font-medium text-gray-700 truncate max-w-[120px]">
+      <div className="flex items-center gap-2 bg-white/95 backdrop-blur-xl rounded-full px-4 py-2 shadow-lg shadow-black/5">
+        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-pink-400 to-purple-400 flex items-center justify-center text-white text-xs font-bold">
+          {(session.user?.name ?? "U")[0].toUpperCase()}
+        </div>
+        <span className="text-sm font-medium text-gray-600 truncate max-w-[80px]">
           {session.user?.name ?? "User"}
         </span>
         <button
           onClick={() => signOut()}
-          className="text-sm text-red-500 hover:text-red-700 whitespace-nowrap"
+          className="text-xs text-gray-400 hover:text-pink-500 transition-colors"
         >
           Sign out
         </button>
@@ -33,9 +36,9 @@ export default function AuthButton() {
   return (
     <button
       onClick={() => signIn("microsoft-entra-id")}
-      className="bg-white/90 backdrop-blur rounded-lg px-4 py-2 shadow text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors whitespace-nowrap"
+      className="bg-gradient-to-r from-blue-400 to-purple-400 hover:from-blue-500 hover:to-purple-500 rounded-full px-5 py-2.5 shadow-lg shadow-blue-200/50 text-sm font-semibold text-white transition-all whitespace-nowrap"
     >
-      Sign in with Microsoft
+      Sign in
     </button>
   );
 }

@@ -3,9 +3,9 @@ info:
   title: LinkUp Map-First MVP API
   version: 0.2.0
   description: >
-    LinkUp MVP REST API — 3문장 포스트 생성, 지도 기반 탐색,
-    AI Foundry semantic search, MCP multi-source 추천 + Action Hint,
-    협업 참여(Interested/Join).
+    LinkUp MVP REST API — 3-sentence post creation, map-based exploration,
+    AI Foundry semantic search, MCP multi-source suggestions + Action Hint,
+    collaboration engagement (Interested/Join).
 
 servers:
   - url: http://localhost:3000/api
@@ -15,33 +15,33 @@ paths:
   /posts:
     get:
       operationId: listPosts
-      summary: 지도 뷰 내 활성 포스트 조회
+      summary: List active posts within map view
       description: >
-        bounding box 기준으로 TTL 만료되지 않은 포스트를 반환한다.
+        Returns posts that have not exceeded their TTL, based on bounding box.
       parameters:
         - name: swLat
           in: query
           required: true
           schema: { type: number, minimum: -90, maximum: 90 }
-          description: 남서쪽 위도
+          description: Southwest latitude
         - name: swLng
           in: query
           required: true
           schema: { type: number, minimum: -180, maximum: 180 }
-          description: 남서쪽 경도
+          description: Southwest longitude
         - name: neLat
           in: query
           required: true
           schema: { type: number, minimum: -90, maximum: 90 }
-          description: 북동쪽 위도
+          description: Northeast latitude
         - name: neLng
           in: query
           required: true
           schema: { type: number, minimum: -180, maximum: 180 }
-          description: 북동쪽 경도
+          description: Northeast longitude
       responses:
         "200":
-          description: 활성 포스트 목록
+          description: List of active posts
           content:
             application/json:
               schema:
@@ -55,10 +55,10 @@ paths:
 
     post:
       operationId: createPost
-      summary: 새 포스트 생성
+      summary: Create a new post
       description: >
-        인증된 사용자가 3문장 이내의 포스트를 지도 위 좌표에 생성한다.
-        TTL은 필수 선택이다.
+        An authenticated user creates a post of 3 sentences or fewer at map coordinates.
+        TTL is a required selection.
       security:
         - entraId: []
       requestBody:
@@ -68,7 +68,7 @@ paths:
             schema: { $ref: "#/components/schemas/CreatePostRequest" }
       responses:
         "201":
-          description: 포스트 생성 성공
+          description: Post created successfully
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Post" }
@@ -77,7 +77,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "422":
-          description: 3문장 제한 초과 또는 유효하지 않은 입력
+          description: Exceeds 3-sentence limit or invalid input
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
@@ -85,10 +85,10 @@ paths:
   /posts/{postId}/engagement:
     post:
       operationId: upsertEngagement
-      summary: 포스트에 참여 의사 표시 (멱등)
+      summary: Express engagement intent on a post (idempotent)
       description: >
-        Interested 또는 Join 의도를 표시한다.
-        동일 사용자의 중복 호출은 멱등 처리(upsert)된다.
+        Expresses Interested or Join intent.
+        Duplicate calls by the same user are handled idempotently (upsert).
       security:
         - entraId: []
       parameters:
@@ -109,7 +109,7 @@ paths:
                   enum: [interested, join]
       responses:
         "200":
-          description: 참여 기록 완료 (upsert)
+          description: Engagement recorded (upsert)
           content:
             application/json:
               schema:
@@ -121,17 +121,18 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
-          description: 포스트를 찾을 수 없음 (만료 또는 존재하지 않음)
+          description: Post not found (expired or does not exist)
 
   /posts/{postId}/suggestions:
     get:
       operationId: getCombinedSuggestions
-      summary: MCP + AI Foundry 결합 추천 조회
+      summary: Retrieve MCP + AI Foundry combined suggestions
       description: >
-        포스트 내용을 기반으로 AI Foundry semantic search + MCP 서버에서
-        관련 리소스(Docs + Issues + Posts)를 결합 조회하고,
-        Action Hint를 생성하여 반환한다.
-        부분 실패 시 성공한 소스만 반환하며, 전체 실패 시 빈 결과 + 메시지 반환.
+        Based on the post content, performs AI Foundry semantic search + queries the MCP server
+        for related M365 internal resources (OneDrive, SharePoint, Email) as primary sources,
+        supplementary web resources (Docs + Issues), and similar Posts in a combined lookup,
+        generates and returns an Action Hint.
+        On partial failure, only successful sources are returned; on total failure, empty results + message are returned.
       parameters:
         - name: postId
           in: path
@@ -139,27 +140,27 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         "200":
-          description: MCP + AI Foundry 결합 추천 결과
+          description: MCP + AI Foundry combined suggestion results
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CombinedSuggestionsResponse" }
         "404":
-          description: 포스트를 찾을 수 없음
+          description: Post not found
 
   /search:
     get:
       operationId: semanticMapSearch
-      summary: AI Foundry semantic search + 지도 bbox 재필터링
+      summary: AI Foundry semantic search + map bbox re-filtering
       description: >
-        검색 쿼리를 AI Foundry로 임베딩하여 유사 포스트를 찾고,
-        결과를 현재 지도 뷰 영역(bbox)으로 재필터링하여 반환한다.
-        bbox 밖의 결과 개수도 함께 반환한다.
+        Embeds the search query via AI Foundry to find similar posts,
+        re-filters results by the current map view area (bbox), and returns them.
+        Also returns the count of results outside the bbox.
       parameters:
         - name: q
           in: query
           required: true
           schema: { type: string, minLength: 1, maxLength: 200 }
-          description: 검색 쿼리 텍스트
+          description: Search query text
         - name: swLat
           in: query
           required: true
@@ -180,17 +181,17 @@ paths:
           in: query
           required: false
           schema: { type: integer, minimum: 1, maximum: 20, default: 10 }
-          description: 최대 결과 수
+          description: Maximum number of results
       responses:
         "200":
-          description: Semantic search 결과 (bbox 필터링 적용)
+          description: Semantic search results (bbox filtering applied)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SemanticSearchResponse" }
         "400":
           $ref: "#/components/responses/BadRequest"
         "503":
-          description: AI Foundry 서비스 일시 불가
+          description: AI Foundry service temporarily unavailable
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
@@ -209,7 +210,7 @@ components:
         text:
           type: string
           maxLength: 500
-          description: 포스트 본문 (3문장 이내)
+          description: Post body (3 sentences or fewer)
         lat:
           type: number
           minimum: -90
@@ -225,7 +226,7 @@ components:
         ttl:
           type: string
           enum: ["1m", "24h", "72h", "7d"]
-          description: TTL 옵션 (1m은 데모용)
+          description: TTL option (1m is for demo)
         mode:
           type: string
           enum: [online, offline, both]
@@ -261,45 +262,54 @@ components:
         description: { type: string }
         sourceType:
           type: string
-          enum: [doc, issue, post]
-          description: 소스 카테고리
+          enum: [m365, doc, issue, post]
+          description: Source category (M365 primary, web supplementary)
+        source:
+          type: string
+          enum: [onedrive, sharepoint, email]
+          description: M365 sub-source (present when sourceType=m365)
         status:
           type: string
           enum: [available, unavailable]
-          description: 소스 조회 성공 여부
+          description: Source query success status
 
     CombinedSuggestionsResponse:
       type: object
       properties:
+        m365:
+          type: array
+          maxItems: 5
+          items: { $ref: "#/components/schemas/McpSuggestion" }
+          description: MCP search_m365 results (PRIMARY — M365 OneDrive/SharePoint/Email unified)
         docs:
           type: array
           maxItems: 3
           items: { $ref: "#/components/schemas/McpSuggestion" }
-          description: MCP search_docs 결과
+          description: MCP search_docs results (supplementary — web docs)
         issues:
           type: array
           maxItems: 2
           items: { $ref: "#/components/schemas/McpSuggestion" }
-          description: MCP search_issues 결과
+          description: MCP search_issues results (supplementary — GitHub issues)
         posts:
           type: array
           maxItems: 5
           items: { $ref: "#/components/schemas/PostSummary" }
-          description: AI Foundry semantic search 유사 포스트
+          description: AI Foundry semantic search similar posts
         actionHint:
           type: string
           nullable: true
           description: >
-            1줄 다음 행동 제안. gpt-4o-mini 또는 템플릿 기반 생성.
-            생성 실패 시 null.
+            One-line next action suggestion. Generated via gpt-4o-mini or template.
+            null on generation failure.
         source:
           type: string
           const: mcp
-          description: 항상 "mcp" — UI에서 "Suggested via MCP" 표시용
+          description: Always "mcp" — for displaying "Suggested via MCP" in the UI
         unavailableSources:
           type: array
-          items: { type: string, enum: [docs, issues, posts] }
-          description: 조회에 실패한 소스 목록 (부분 실패 시)
+          items: { type: string, enum: [m365, docs, issues, posts] }
+          description: List of sources that failed to query (on partial failure)
 
     SemanticSearchResponse:
       type: object
@@ -307,31 +317,31 @@ components:
         posts:
           type: array
           items: { $ref: "#/components/schemas/PostSummary" }
-          description: bbox 내 semantic search 결과
+          description: Semantic search results within bbox
         outOfBounds:
           type: integer
-          description: bbox 밖의 결과 개수 (UI에서 "지도 밖 N건" 표시)
+          description: Count of results outside bbox (displays "N results outside map" in UI)
         query:
           type: string
-          description: 검색 쿼리 원문
+          description: Original search query
 
     ErrorResponse:
       type: object
       properties:
         error:
           type: string
-          description: 오류 메시지 (사용자 입력 원문 제외 — 로그 마스킹 원칙)
+          description: Error message (excludes raw user input — log masking principle)
         code:
           type: string
 
   responses:
     BadRequest:
-      description: 잘못된 요청 파라미터
+      description: Invalid request parameters
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ErrorResponse" }
     Unauthorized:
-      description: 인증 필요 (Entra ID 토큰 없음 또는 만료)
+      description: Authentication required (Entra ID token missing or expired)
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ErrorResponse" }

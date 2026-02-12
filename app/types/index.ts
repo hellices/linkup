@@ -29,13 +29,19 @@ export interface McpSuggestion {
   title: string;
   url: string;
   description: string;
-  sourceType: "doc" | "issue" | "post";
+  sourceType: "m365" | "doc" | "issue" | "post";
+  /** M365 sub-source for UI icon/grouping (only present when sourceType === "m365") */
+  source?: "onedrive" | "sharepoint" | "email";
   status: "available" | "unavailable";
 }
 
 export interface CombinedSuggestionsResponse {
+  /** PRIMARY — M365 internal resources (OneDrive/SharePoint/Email unified) */
+  m365: McpSuggestion[];
+  /** SUPPLEMENTARY — Web resources */
   docs: McpSuggestion[];
   issues: McpSuggestion[];
+  /** Related posts */
   posts: PostSummary[];
   actionHint: string | null;
   source: "mcp";

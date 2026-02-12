@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { countSentences } from "@/app/lib/validation";
 import type { PostSummary } from "@/app/types";
 
 interface PostCreateModalProps {
@@ -13,10 +12,10 @@ interface PostCreateModalProps {
 }
 
 const TTL_OPTIONS = [
-  { value: "1m", label: "1분 (데모)" },
-  { value: "24h", label: "24시간" },
-  { value: "72h", label: "72시간" },
-  { value: "7d", label: "7일" },
+  { value: "1m", label: "1min (demo)" },
+  { value: "24h", label: "24 hours" },
+  { value: "72h", label: "72 hours" },
+  { value: "7d", label: "7 days" },
 ] as const;
 
 export default function PostCreateModal({
@@ -31,9 +30,9 @@ export default function PostCreateModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sentenceCount = countSentences(text);
-  const isOverLimit = sentenceCount > 3;
-  const canSave = text.trim() && ttl && !isOverLimit && !saving;
+  const charCount = text.length;
+  const isOverLimit = charCount > 300;
+  const canSave = text.trim().length > 0 && ttl && !isOverLimit && !saving;
 
   const handleSave = useCallback(async () => {
     if (!canSave) return;
@@ -80,13 +79,13 @@ export default function PostCreateModal({
   }, [canSave, text, ttl, tags, lat, lng, onCreated]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-800">새 포스트</h2>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/20 backdrop-blur-sm">
+      <div className="bg-white/95 backdrop-blur-xl rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md sm:mx-4 p-6 zenly-bounce">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">💬 New Post</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl"
+            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-400 transition-colors"
           >
             ✕
           </button>
@@ -97,39 +96,38 @@ export default function PostCreateModal({
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="3문장 이내로 질문/요청/링크를 작성하세요..."
-            className={`w-full h-24 border rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 ${
+            placeholder="Write a quick question, request, or link ✨"
+            className={`w-full h-28 border-2 rounded-2xl p-4 text-sm resize-none focus:outline-none transition-colors ${
               isOverLimit
-                ? "border-red-300 focus:ring-red-400"
-                : "border-gray-200 focus:ring-blue-400"
+                ? "border-pink-300 focus:border-pink-400 bg-pink-50/50"
+                : "border-gray-100 focus:border-purple-300 bg-gray-50/50"
             }`}
-            maxLength={500}
+            maxLength={300}
           />
           <div
-            className={`text-xs mt-1 ${
-              isOverLimit ? "text-red-500 font-medium" : "text-gray-400"
+            className={`text-xs mt-1.5 text-right font-medium ${
+              isOverLimit ? "text-pink-500" : "text-gray-300"
             }`}
           >
-            {sentenceCount}/3 문장
-            {isOverLimit && " — 3문장 이내로 작성해 주세요"}
-            <span className="float-right">{text.length}/500</span>
+            {charCount}/300
+            {isOverLimit && " — Please shorten a bit 🙏"}
           </div>
         </div>
 
         {/* TTL selector */}
         <div className="mb-4">
-          <label className="text-xs font-medium text-gray-500 mb-1 block">
-            만료 시간 (TTL)
+          <label className="text-xs font-semibold text-gray-400 mb-2 block">
+            ⏰ How long should it be visible?
           </label>
           <div className="flex gap-2">
             {TTL_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setTtl(opt.value)}
-                className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                   ttl === opt.value
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    ? "bg-gradient-to-r from-blue-400 to-purple-400 text-white shadow-md shadow-purple-200/50 scale-105"
+                    : "bg-gray-50 text-gray-400 hover:bg-gray-100"
                 }`}
               >
                 {opt.label}
@@ -140,46 +138,46 @@ export default function PostCreateModal({
 
         {/* Tags input */}
         <div className="mb-4">
-          <label className="text-xs font-medium text-gray-500 mb-1 block">
-            태그 (선택, 쉼표로 구분)
+          <label className="text-xs font-semibold text-gray-400 mb-2 block">
+            🏷️ Tags (optional)
           </label>
           <input
             value={tags}
             onChange={(e) => setTags(e.target.value)}
             placeholder="AKS, Entra, React..."
-            className="w-full border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm focus:outline-none focus:border-purple-300 bg-gray-50/50 transition-colors"
           />
         </div>
 
         {/* Coordinates info */}
-        <div className="mb-4 text-xs text-gray-400">
+        <div className="mb-4 text-xs text-gray-300 font-medium">
           📍{" "}
           {lat && lng
             ? `${lat.toFixed(4)}, ${lng.toFixed(4)}`
-            : "지도 중심점 사용"}
+            : "Using map center"}
         </div>
 
         {/* Error */}
         {error && (
-          <div className="mb-3 text-sm text-red-500 bg-red-50 rounded-lg p-2">
+          <div className="mb-3 text-sm text-pink-500 bg-pink-50 rounded-xl p-3 font-medium">
             {error}
           </div>
         )}
 
         {/* Actions */}
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
+            className="flex-1 py-3 rounded-xl border-2 border-gray-100 text-sm text-gray-400 font-semibold hover:bg-gray-50 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={!canSave}
-            className="flex-1 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-3 rounded-xl bg-gradient-to-r from-pink-400 to-purple-500 text-white text-sm font-bold hover:from-pink-500 hover:to-purple-600 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-pink-200/40 transition-all active:scale-95"
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Saving..." : "Post 🚀"}
           </button>
         </div>
       </div>

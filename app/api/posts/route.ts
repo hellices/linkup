@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/app/lib/db";
 import { auth } from "@/app/lib/auth";
 import {
-  validateSentences,
-  validateTextLength,
   validateCoordinates,
   calculateExpiresAt,
 } from "@/app/lib/validation";
@@ -84,19 +82,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Validate text length
-  if (!validateTextLength(text)) {
+  // Validate text length (max 300 chars)
+  if (text.length > 300) {
     return NextResponse.json(
-      { error: "Text exceeds maximum 500 characters" },
-      { status: 422 }
-    );
-  }
-
-  // Validate 3-sentence limit (FR-005)
-  const sentenceResult = validateSentences(text);
-  if (!sentenceResult.valid) {
-    return NextResponse.json(
-      { error: sentenceResult.error, code: "SENTENCE_LIMIT" },
+      { error: "Please keep your text within 300 characters.", code: "TEXT_TOO_LONG" },
       { status: 422 }
     );
   }

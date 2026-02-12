@@ -47,7 +47,7 @@ export function validateSentences(text: string): {
     return {
       valid: false,
       sentenceCount,
-      error: `3문장 이내로 작성해 주세요. 현재 ${sentenceCount}문장입니다.`,
+      error: `Please keep within 3 sentences. Currently ${sentenceCount} sentence(s).`,
     };
   }
   return { valid: true, sentenceCount };

@@ -3,240 +3,258 @@
 **Feature Branch**: `001-map-first-mvp`
 **Created**: 2026-02-12
 **Status**: Draft
-**Input**: User description: "LinkUp Map-First MVP — 3문장 포스트 + 지도 기반 탐색 + MCP 추천 + 협업 매칭을 100분 안에 빌드"
+**Input**: User description: "LinkUp Map-First MVP — 3-sentence posts + map-based discovery + MCP recommendations + collaboration matching built in 100 minutes"
 
 ## Summary
 
-LinkUp은 Entra ID로 로그인한 사용자가 3문장 이내의 짧은 포스트(질문/요청/링크)를
-지도 위에 게시하고, MCP를 통해 관련 리소스를 추천받으며,
-Interested/Join으로 협업을 시작할 수 있는 지도 기반 초경량 협업 앱의 MVP이다.
-전체 흐름(로그인→포스트 생성→지도 반영→MCP 추천→Join→TTL 만료)을 2분 데모로 시연할 수 있어야 한다.
+LinkUp is an MVP of a map-based ultra-lightweight collaboration app where users logged in via Entra ID
+can post short posts (questions/requests/links) of up to 3 sentences on a map,
+receive related resource recommendations through MCP,
+and start collaboration via Interested/Join.
+The entire flow (login → post creation → map update → MCP recommendations → Join → TTL expiration) must be demonstrable in a 2-minute demo.
 
-## Non-Goals (이번 MVP에서 제외)
+## Non-Goals (Excluded from this MVP)
 
-- 실시간 위치 추적(친구 GPS), 팔로우/친구 그래프 등 무거운 소셜 기능
-- 장문 게시, 위키/문서 저장소화
-- 고급 추천(랭킹/정교한 ML), 완전한 스코어보드/대시보드
-- 복잡한 권한 모델/조직도 기반 추천
-- 백그라운드 DB 정리 작업(cleanup job), DB 수준 TTL 인덱스, 만료 포스트 자동 물리 삭제 — MVP에서는 조회 시점 필터링(`expiresAt > now`)만으로 충분하다
-- 복잡한 인증 흐름: 토큰 자동 갱신(refresh), 세션 만료 재로그인 처리, 멀티탭 세션 동기화, 소셜 로그인 연동 등은 MVP 범위 밖이다
+- Heavy social features such as real-time location tracking (friend GPS), follow/friend graphs, etc.
+- Long-form posting, wiki/document repository features
+- Advanced recommendations (ranking/sophisticated ML), full scoreboard/dashboard
+- Complex permission models/org chart-based recommendations
+- Background DB cleanup jobs, DB-level TTL indexes, automatic physical deletion of expired posts — in the MVP, query-time filtering (`expiresAt > now`) is sufficient
+- Complex authentication flows: automatic token refresh, session expiration re-login handling, multi-tab session synchronization, social login integration, etc. are outside the MVP scope
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — Map Post Creation (Priority: P1)
 
-사용자로서, Entra ID로 로그인한 뒤 지도 화면에서 "+" 버튼을 눌러
-3문장 이내의 짧은 포스트를 작성하고, TTL(만료 시간)을 선택해 지도에 게시하고 싶다.
-포스트는 지도 위의 특정 좌표(클릭 지점 또는 지도 중심점)에 마커로 표시된다.
+As a user, after logging in with Entra ID, I want to press the "+" button on the map screen
+to write a short post of up to 3 sentences, select a TTL (expiration time), and publish it on the map.
+The post is displayed as a marker at specific coordinates on the map (click point or map center).
 
-**Why this priority**: 지도 위 포스트 생성은 LinkUp의 핵심 가치("10초 안에 질문")를
-실현하는 최우선 기능이다. 이것이 없으면 다른 모든 기능이 무의미하다.
+**Why this priority**: Map post creation is the top-priority feature that realizes LinkUp's core value
+("ask a question in 10 seconds"). Without this, all other features are meaningless.
 
-**Independent Test**: Entra 로그인 → "+" 버튼 → 3문장 작성 → TTL 선택 → 저장 →
-지도에 새 마커 표시 확인. 이것만으로도 "지도 위에 질문을 올리는" 기본 가치를 제공한다.
+**Independent Test**: Entra login → "+" button → write 3 sentences → select TTL → save →
+verify new marker appears on the map. This alone delivers the basic value of "posting a question on the map."
 
 **Acceptance Scenarios**:
 
-1. **Given** 인증된 사용자가 지도 화면에 있을 때, **When** "+" 버튼을 누르고 3문장 이내 텍스트 + TTL을 입력하고 저장하면, **Then** 지도에 새 마커가 생성되고 해당 좌표에 표시된다.
-2. **Given** 사용자가 포스트 작성 중일 때, **When** 4문장 이상 입력하면, **Then** UI에서 3문장 제한 안내가 표시되고 저장이 거부된다.
-3. **Given** 사용자가 포스트 작성 모달을 열었을 때, **When** TTL 옵션(24h/72h/7d)을 선택하지 않으면, **Then** 저장 버튼이 비활성화되거나 기본 TTL이 적용된다.
-4. **Given** 비인증 사용자(로그인 안 된 상태)일 때, **When** "+" 버튼을 누르면, **Then** 로그인 화면으로 리디렉션되거나 접근이 거부된다.
+1. **Given** an authenticated user is on the map screen, **When** they press the "+" button, enter text of up to 3 sentences + TTL, and save, **Then** a new marker is created on the map and displayed at the corresponding coordinates.
+2. **Given** a user is writing a post, **When** they enter 4 or more sentences, **Then** a 3-sentence limit notice is displayed in the UI and the save is rejected.
+3. **Given** a user has opened the post creation modal, **When** they do not select a TTL option (24h/72h/7d), **Then** the save button is disabled or a default TTL is applied.
+4. **Given** an unauthenticated user (not logged in), **When** they press the "+" button, **Then** they are redirected to the login screen or access is denied.
 
 ---
 
 ### User Story 2 — Map Discovery & Post Viewing (Priority: P1)
 
-사용자로서, 지도를 탐색하며 주변/관심 영역에 게시된 포스트 마커를 클릭하면
-팝업(또는 사이드 패널)에서 포스트 내용, 남은 시간, 참여 버튼, MCP 추천을 확인하고 싶다.
+As a user, I want to explore the map, click on post markers in nearby/areas of interest,
+and view the post content, remaining time, engagement buttons, and MCP recommendations
+in a popup (or side panel).
 
-**Why this priority**: 포스트를 보는 것은 포스트 생성과 동등한 핵심 기능이다.
-"어디에서 도움이 필요한지 직관적으로 이해"하는 Map-First 원칙의 직접 구현이다.
+**Why this priority**: Viewing posts is a core feature on par with post creation.
+It is a direct implementation of the Map-First principle: "intuitively understand where help is needed."
 
-**Independent Test**: 기존 포스트가 있는 지도에서 마커 클릭 → 팝업에 포스트 요약,
-남은 시간, Interested/Join 버튼, Suggested via MCP 섹션이 표시됨을 확인한다.
+**Independent Test**: On a map with existing posts, click a marker → verify the popup shows
+post summary, remaining time, Interested/Join buttons, and Suggested via MCP section.
 
 **Acceptance Scenarios**:
 
-1. **Given** 지도에 1개 이상의 포스트 마커가 표시될 때, **When** 마커를 클릭하면, **Then** 팝업에 포스트 텍스트(3문장), 태그(있을 경우), 남은 TTL, 참여 버튼, MCP 추천 섹션이 표시된다.
-2. **Given** 지도 뷰를 이동/줌할 때, **When** 새로운 영역에 포스트가 있으면, **Then** 해당 포스트의 마커가 지도에 로드되어 표시된다.
+1. **Given** one or more post markers are displayed on the map, **When** a marker is clicked, **Then** the popup shows the post text (3 sentences), tags (if any), remaining TTL, engagement buttons, and MCP recommendation section.
+2. **Given** the map view is panned/zoomed, **When** there are posts in the new area, **Then** the markers for those posts are loaded and displayed on the map.
 
 ---
 
 ### User Story 3 — MCP + AI Foundry Integrated Search (Priority: P1)
 
-사용자로서, 포스트 팝업에서 MCP + AI Foundry가 통합 검색한 관련 문서/이슈/포스트를
-"Suggested via MCP" 라벨의 결합 UI에서 확인하고, 1줄 Action Hint(다음 행동 제안)를 받고 싶다.
-또한 지도 검색 시 AI Foundry semantic search 결과가 지도 영역에 맞게 재필터링되어
-마커로 표시되는 경험을 원한다.
+As a user, I want to view **M365 internal resources (OneDrive files/PPT, SharePoint documents, Outlook emails) with priority**,
+along with supplementary external resources (Azure Docs, GitHub Issues) and similar posts
+via MCP + AI Foundry integrated search in a combined UI labeled "Suggested via MCP,"
+and receive a 1-line Action Hint (next action suggestion).
+Additionally, when searching the map, I want AI Foundry semantic search results to be re-filtered
+to the map area and displayed as markers.
 
-**Why this priority**: MCP 통합은 Constitution에서 핵심 기능으로 정의되어 있으며,
-AI Foundry와의 결합은 LinkUp이 단순 질문 게시판이 아닌 "지식 연결 플랫폼"임을
-차별화하는 핵심이다. 다중 소스 결합 검색과 Action Hint는 Connection Over Storage 원칙의
-직접 구현이다.
+**Why this priority**: MCP integration is defined as a core feature in the Constitution,
+and the combination with AI Foundry is the key differentiator that makes LinkUp
+a "knowledge connection platform" rather than a simple question board.
+**M365 internal resource search is the core value** — PPTs, OneDrive files,
+SharePoint documents, and emails that I already have are practically more useful than documents found on the internet. External web search (Docs/Issues) plays a supplementary role.
+Multi-source combined search and Action Hints are a direct implementation of the Connection Over Storage principle.
 
 **Independent Test**:
-- 포스트 팝업 열기 → "Suggested via MCP" 섹션에 Docs/Issues/Posts 결합 결과 표시 확인
-- Action Hint 1줄이 결과 상단에 표시됨을 확인
-- 지도 검색 시 semantic search 결과가 현재 뷰 영역 내 마커로 표시됨을 확인
-- MCP 서버 장애 시 "No suggestions available" 표시를 확인
+- Open post popup → verify M365 results (OneDrive/SharePoint/Email) displayed **prominently** at the top of the "Suggested via MCP" section
+- Verify supplementary web results (Docs/Issues) displayed below M365 results
+- Verify combined Posts results in the "Suggested via MCP" section
+- Verify a 1-line Action Hint is displayed at the top of the results
+- Verify that semantic search results are displayed as markers within the current map view area during map search
+- Verify "No suggestions available" is displayed when the MCP server fails
 
 **Acceptance Scenarios**:
 
-1. **Given** 사용자가 포스트 팝업을 열었을 때, **When** MCP + AI Foundry가 정상 응답하면, **Then** "Suggested via MCP" 섹션에 Docs/Issues/Posts 카테고리별로 결합된 결과가 표시된다.
-2. **Given** MCP 결과가 반환되었을 때, **When** 결과 상단을 확인하면, **Then** 1줄 Action Hint(다음 행동 제안)가 표시된다.
-3. **Given** 사용자가 지도에서 검색을 수행할 때, **When** AI Foundry semantic search 결과가 있으면, **Then** 현재 지도 뷰 영역 내의 결과만 마커로 표시된다.
-4. **Given** 사용자가 포스트 팝업을 열었을 때, **When** MCP 호출이 실패하면, **Then** "No suggestions available" 메시지가 표시되고 앱은 정상 동작한다.
+1. **Given** a user has opened a post popup, **When** MCP + AI Foundry responds successfully, **Then** combined results grouped by category are displayed in the "Suggested via MCP" section, with **M365 sources (OneDrive/SharePoint/Email) displayed first** as primary results, followed by supplementary web sources (Docs/Issues) and related Posts.
+2. **Given** MCP results have been returned, **When** the top of the results is viewed, **Then** a 1-line Action Hint (next action suggestion) is displayed.
+3. **Given** a user performs a search on the map, **When** AI Foundry semantic search results exist, **Then** only results within the current map view area are displayed as markers.
+4. **Given** a user has opened a post popup, **When** the MCP call fails, **Then** a "No suggestions available" message is displayed and the app continues to function normally.
+5. **Given** a user has opened a post popup, **When** M365 sources return results but web sources fail, **Then** M365 results are displayed normally and web source sections show "unavailable" status.
 
 ---
 
 ### User Story 4 — Collaboration Signal (Interested / Join) (Priority: P2)
 
-사용자로서, 관심 있는 포스트에 "Interested" 또는 "Join"을 눌러 참여 의사를 표시하고,
-참여자 수를 확인하고 싶다.
+As a user, I want to press "Interested" or "Join" on a post of interest to signal my participation intent,
+and view the participant count.
 
-**Why this priority**: 협업 시작은 LinkUp의 "Connection Over Storage" 철학의 직접 구현이다.
-P1(포스트/지도/MCP)이 없으면 참여 대상이 없으므로 P2로 분류한다.
+**Why this priority**: Starting collaboration is a direct implementation of LinkUp's "Connection Over Storage" philosophy.
+Without P1 (posts/map/MCP), there is nothing to participate in, so this is classified as P2.
 
-**Independent Test**: 인증된 사용자가 포스트 팝업에서 "Join" 클릭 → 참여자 수 증가 확인.
-동일 사용자가 다시 클릭 시 중복 카운트되지 않음을 확인.
+**Independent Test**: Authenticated user clicks "Join" in the post popup → verify participant count increases.
+Verify that clicking again by the same user does not result in a duplicate count.
 
 **Acceptance Scenarios**:
 
-1. **Given** 인증된 사용자가 포스트 팝업을 열었을 때, **When** "Interested" 또는 "Join" 버튼을 클릭하면, **Then** 참여가 기록되고 참여자 수가 업데이트된다.
-2. **Given** 이미 "Join"을 누른 사용자가, **When** 다시 "Join"을 누르면, **Then** 중복 참여가 발생하지 않고 참여자 수는 변하지 않는다(멱등 처리).
-3. **Given** 비인증 사용자가, **When** 참여 버튼을 클릭하면, **Then** 로그인이 요구된다.
+1. **Given** an authenticated user has opened a post popup, **When** they click the "Interested" or "Join" button, **Then** the engagement is recorded and the participant count is updated.
+2. **Given** a user who has already pressed "Join," **When** they press "Join" again, **Then** no duplicate engagement occurs and the participant count does not change (idempotent handling).
+3. **Given** an unauthenticated user, **When** they click the engagement button, **Then** login is required.
 
 ---
 
 ### User Story 5 — TTL Expiration (Priority: P2)
 
-사용자로서, TTL이 만료된 포스트가 자동으로 지도에서 사라져
-부담 없이 가벼운 질문을 올릴 수 있는 경험을 제공받고 싶다.
+As a user, I want posts with expired TTLs to automatically disappear from the map,
+providing a low-pressure experience for posting lightweight questions.
 
-**Why this priority**: Ephemeral by Default는 Constitution의 핵심 원칙이다.
-MVP에서 만료 동작이 없으면 헌법 위반이므로 반드시 포함하되,
-생성/조회/MCP보다 후순위로 구현 가능하다.
+**Why this priority**: Ephemeral by Default is a core principle of the Constitution.
+Without expiration behavior in the MVP, it violates the constitution, so it must be included,
+but it can be implemented after creation/viewing/MCP.
 
-**Independent Test**: 짧은 TTL(예: 1분)의 포스트 생성 → 1분 후 지도 새로고침 →
-해당 마커가 지도와 목록에서 사라짐을 확인.
+**Independent Test**: Create a post with a short TTL (e.g., 1 minute) → refresh the map after 1 minute →
+verify the marker disappears from the map and list.
 
 **Acceptance Scenarios**:
 
-1. **Given** TTL이 만료된 포스트가 존재할 때, **When** 지도를 로드하거나 새로고침하면, **Then** 해당 포스트의 마커는 표시되지 않는다.
-2. **Given** 짧은 TTL(데모용)의 포스트를 생성한 후, **When** TTL 시간이 경과하면, **Then** 포스트 조회 요청에서 해당 포스트가 반환되지 않는다.
+1. **Given** a post with an expired TTL exists, **When** the map is loaded or refreshed, **Then** the marker for that post is not displayed.
+2. **Given** a post with a short TTL (for demo) has been created, **When** the TTL time has elapsed, **Then** the post is not returned in post query requests.
 
 ---
 
 ### User Story 6 — Entra ID Login (Priority: P1)
 
-사용자로서, Entra ID로 간편하게 로그인하여 별도 회원가입 없이 바로 LinkUp을 사용하고 싶다.
+As a user, I want to easily log in with Entra ID and use LinkUp immediately without separate registration.
 
-**Why this priority**: 인증 없이는 어떤 쓰기 기능도 동작하지 않으므로
-모든 기능의 전제 조건이다.
+**Why this priority**: Without authentication, no write functionality works,
+so it is a prerequisite for all features.
 
-**Independent Test**: 앱 접근 → Entra ID 로그인 페이지 → 로그인 성공 → 지도 화면 진입.
-로그인 실패 시 적절한 오류 메시지 표시.
+**Independent Test**: Access the app → Entra ID login page → successful login → enter the map screen.
+Display an appropriate error message on login failure.
 
 **Acceptance Scenarios**:
 
-1. **Given** 비인증 사용자가 앱에 접근할 때, **When** Entra ID 로그인을 완료하면, **Then** 지도 메인 화면에 진입하고 사용자 식별 정보가 세션에 유지된다.
-2. **Given** 비인증 사용자가 앱에 접근할 때, **When** 로그인하지 않으면, **Then** 읽기 전용 모드로 지도를 볼 수 있다(지도 열람 + 마커 표시까지 허용). 포스트 상세 팝업, 포스트 생성, 참여(Interested/Join) 시도시에는 로그인 화면으로 안내된다.
+1. **Given** an unauthenticated user accesses the app, **When** they complete Entra ID login, **Then** they enter the map main screen and user identification information is maintained in the session.
+2. **Given** an unauthenticated user accesses the app, **When** they do not log in, **Then** they can view the map in read-only mode (map browsing + marker display is allowed). When attempting to view post detail popups, create posts, or engage (Interested/Join), they are directed to the login screen.
 
 ---
 
 ### Edge Cases
 
-- **3문장 경계**: 마침표/물음표/느낌표 기준 문장 카운트 시, 줄바꿈만 있는 경우나 URL 내 점(.)은 문장 구분으로 처리하지 않아야 한다.
-- **TTL 동시성**: 포스트 팝업을 열고 있는 도중 TTL이 만료되면, 팝업은 닫히거나 "이 포스트는 만료되었습니다" 메시지를 표시해야 한다.
-- **MCP 타임아웃**: MCP/AI Foundry 서버 응답이 느린 경우(예: 5초 이상), 추천 섹션에 로딩 표시 후 타임아웃 시 "No suggestions available" 표시.
-- **MCP 부분 실패**: Docs는 성공하지만 Issues 소스가 실패한 경우, 성공한 소스의 결과만 표시하고 실패한 소스는 "unavailable" 표시.
-- **Action Hint 생성 실패**: AI Foundry가 Action Hint를 생성하지 못하면, 힌트 영역을 숨기고 결과 목록만 표시.
-- **Semantic search 결과와 지도 영역 불일치**: AI Foundry 결과 중 현재 지도 뷰 밖의 결과는 마커로 표시하지 않되, 결합 UI의 하단에 "지도 밖 N건" 라벨로 표시하고, 클릭 시 해당 영역으로 지도를 이동한다.
-- **Semantic search 뷰포트 내 0건**: 검색 결과가 현재 지도 뷰포트 내에 0건이면, "이 영역에 검색 결과가 없습니다" 안내를 표시하고, 뷰포트 밖에 결과가 있으면 "지도 밖 N건" 표시로 안내한다.
-- **중복 참여**: 동일 사용자의 Interested→Join 전환 시, 기존 Interested를 Join으로 업그레이드 처리하고 카운트가 중복 증가하지 않아야 한다.
-- **좌표 없는 포스트**: 지도 클릭 없이 포스트 생성 시도 시, 기본 좌표(지도 중심점)를 자동 할당하거나 좌표 선택을 강제해야 한다.
-- **빈 지도 영역**: 현재 지도 뷰에 포스트가 하나도 없을 때, 빈 상태 안내(예: "이 지역에는 아직 포스트가 없습니다")를 표시해야 한다.
+- **3-sentence boundary**: When counting sentences based on periods/question marks/exclamation marks, line breaks alone or dots (.) within URLs must not be treated as sentence delimiters.
+- **TTL concurrency**: If the TTL expires while a post popup is open, the popup should close or display a "This post has expired" message.
+- **MCP timeout**: When the MCP/AI Foundry server response is slow (e.g., over 5 seconds), show a loading indicator in the recommendation section, and display "No suggestions available" on timeout.
+- **MCP partial failure**: When some sources succeed but others fail (e.g., OneDrive succeeds but SharePoint/Email fail), display only the results from the successful sources and show "unavailable" for the failed sources. M365 sources and web sources are processed independently.
+- **Action Hint generation failure**: If AI Foundry fails to generate an Action Hint, hide the hint area and display only the result list.
+- **Semantic search results and map area mismatch**: Results from AI Foundry outside the current map view should not be displayed as markers, but should be shown as a "N results outside map" label at the bottom of the combined UI, and clicking it should pan the map to that area.
+- **Semantic search 0 results within viewport**: If search results have 0 matches within the current map viewport, display a "No search results in this area" notice, and if there are results outside the viewport, provide a "N results outside map" indicator.
+- **Duplicate engagement**: When the same user transitions from Interested → Join, the existing Interested should be upgraded to Join, and the count must not increase duplicately.
+- **Post without coordinates**: When attempting to create a post without clicking the map, automatically assign default coordinates (map center) or require coordinate selection.
+- **Empty map area**: When there are no posts in the current map view, display an empty state notice (e.g., "There are no posts in this area yet").
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: 시스템은 Entra ID를 통한 사용자 인증을 지원해야 한다.
-- **FR-002**: 인증되지 않은 사용자의 쓰기 기능(포스트 생성, 참여)은 차단되어야 한다. MVP 인증 범위는 쓰기 경로 차단(write-path gating)에 한정하며, 읽기 경로(지도 열람)는 인증 없이 허용된다.
-- **FR-003**: 메인 화면은 인터랙티브 지도 기반이어야 하며, 포스트는 마커로 표현되어야 한다.
-- **FR-004**: 사용자는 "+" 버튼으로 포스트 작성 모달을 열 수 있어야 한다.
-- **FR-005**: 포스트 본문은 3문장 이내로 제한되어야 하며, 이 제한은 UI와 서버 모두에서 강제되어야 한다.
-- **FR-006**: 포스트는 TTL(만료 시간)을 필수로 가져야 하며, 사용자가 선택하거나 기본값이 적용되어야 한다.
-- **FR-007**: 포스트는 위도/경도 좌표를 필수로 가져야 한다. MVP에서는 지도 클릭 지점 또는 지도 중심점을 좌표로 사용한다.
-- **FR-008**: 마커 클릭 시 팝업(또는 사이드 패널)에 포스트 요약, 남은 시간, 참여 버튼, MCP 추천 섹션이 표시되어야 한다.
-- **FR-009**: 사용자는 포스트에 대해 "Interested" 또는 "Join"을 표시할 수 있어야 한다.
-- **FR-010**: 동일 사용자의 중복 참여는 멱등 처리되어야 한다(한 번만 카운트).
-- **FR-011**: 포스트 팝업에 참여자 수(Interested/Join)가 표시되어야 한다.
-- **FR-012**: TTL이 만료된 포스트는 지도 및 조회 결과에서 제외되어야 한다. MVP에서 TTL 강제는 조회 시점 필터링(`expiresAt > now`)으로 충분하며, 만료 포스트는 조회 결과에서 제외되지만 DB에서 물리적으로 삭제되지는 않는다(물리 삭제는 Non-Goals 참조).
-- **FR-013** (FR7.1): MCP는 외부 데이터 소스(Docs + Issues 중 최소 1종)를 연동해 검색 결과를 제공해야 한다.
-- **FR-014** (FR7.2): 포스트 작성/조회 시 AI Foundry + MCP를 사용해 "연관도 높은 포스트/문서/이슈"를 반환해야 한다.
-- **FR-015** (FR7.3): 지도 검색에서 AI Foundry semantic search 결과를 현재 지도 뷰 영역으로 재필터링하여 마커로 표시해야 한다. 검색 활성화 시 검색 결과에 해당하는 마커는 강조(highlight) 표시하고, 결과에 해당하지 않는 마커는 흐리게(dimmed/reduced opacity) 처리하여 시각적으로 구분한다. 검색 결과 마커는 색상 변화 또는 크기 변화로 일반 마커와 명확히 구별되어야 한다.
-- **FR-016** (FR7.4): MCP 결과를 기반으로 "Action Hint(다음 행동 제안)"을 1줄 생성해 사용자에게 제공해야 한다. Action Hint는 포스트 팝업의 "Suggested via MCP" 섹션 상단에 강조된 스타일(배경색 또는 볼드)로 배치되며, 일반 요약이 아닌 구체적인 다음 행동을 제안해야 한다(예: "Step 2를 먼저 확인하세요", "관련 이슈 #42를 참고하세요"). Action Hint는 클릭 가능하며, 클릭 시 해당 리소스로 이동할 수 있어야 한다.
-- **FR-017** (FR7.5): 여러 결과(Docs + Posts + Issues)를 하나의 결합된 UI에 카테고리별로 그룹화하여 표시해야 한다("Suggested via MCP" 라벨 포함). 결과는 평면 목록이 아닌 소스 카테고리(Docs / Issues / Posts)별로 구분된 섹션으로 표시되어 다중 소스 통합이 시각적으로 명확해야 한다.
-- **FR-018**: MCP 호출 실패 시 "No suggestions available" 메시지로 graceful degrade 해야 하며, 부분 실패 시 성공한 소스의 결과만 카테고리별로 표시하고 실패한 소스 카테고리는 해당 섹션에 "unavailable" 상태를 명시해야 한다(예: Docs 성공 + Issues 실패 → Docs 결과 정상 표시 + Issues 섹션에 "Issues unavailable" 표시).
-- **FR-019**: 포스트 본문, PII, 민감 데이터는 로그에 원문 그대로 기록하지 않아야 한다.
-- **FR-020**: 입력 값(본문 길이, 문장 수, 좌표 범위)에 대한 서버 측 검증이 수행되어야 한다.
-- **FR-021**: 포스트 팝업에는 최소 2개의 서로 구분되는 MCP UI 요소가 표시되어야 한다: ① "Suggested via MCP" 라벨이 붙은 카테고리별 결과 목록(FR-017), ② 결과 상단의 강조된 Action Hint 1줄(FR-016). 이 두 요소는 시각적으로 명확히 구분되어야 한다.
-- **FR-022**: 지도에서 semantic search 수행 시 현재 뷰포트 내에 결과가 0건이면, "이 영역에 검색 결과가 없습니다" 안내와 함께 "지도 밖 N건" 표시를 제공해야 한다. 사용자는 해당 표시를 통해 뷰포트 밖의 결과가 존재함을 인지하고, 클릭 시 해당 영역으로 지도가 이동할 수 있어야 한다.
+- **FR-001**: The system must support user authentication via Entra ID.
+- **FR-002**: Write functionality (post creation, engagement) must be blocked for unauthenticated users. The MVP authentication scope is limited to write-path gating, and the read path (map browsing) is allowed without authentication.
+- **FR-003**: The main screen must be based on an interactive map, and posts must be represented as markers.
+- **FR-004**: Users must be able to open the post creation modal via the "+" button.
+- **FR-005**: Post body must be limited to 3 sentences or fewer, and this limit must be enforced on both the UI and server side.
+- **FR-006**: Posts must have a mandatory TTL (expiration time), which users can select or a default value is applied.
+- **FR-007**: Posts must have mandatory latitude/longitude coordinates. In the MVP, the map click point or map center is used as coordinates.
+- **FR-008**: When a marker is clicked, the popup (or side panel) must display the post summary, remaining time, engagement buttons, and MCP recommendation section.
+- **FR-009**: Users must be able to mark "Interested" or "Join" on a post.
+- **FR-010**: Duplicate engagement by the same user must be handled idempotently (counted only once).
+- **FR-011**: The participant count (Interested/Join) must be displayed in the post popup.
+- **FR-012**: Posts with expired TTLs must be excluded from the map and query results. In the MVP, TTL enforcement is sufficient via query-time filtering (`expiresAt > now`); expired posts are excluded from query results but are not physically deleted from the DB (see Non-Goals for physical deletion).
+- **FR-013** (FR7.1): MCP must integrate **M365 internal resource sources (OneDrive, SharePoint, Email) as the primary source**, and combine external data sources (Docs + Issues) as supplementary sources to provide search results. At least one M365 source must return results.
+- **FR-014** (FR7.2): When creating/viewing posts, AI Foundry + MCP must be used to return "highly relevant posts/documents/issues." The app sends the user query and available MCP tool definitions to the LLM, and **the LLM decides which MCP tools to call and with what arguments** (LLM-driven tool orchestration). The app does not hardcode tool selection.
+- **FR-015** (FR7.3): In map search, AI Foundry semantic search results must be re-filtered to the current map view area and displayed as markers. When search is active, markers matching search results should be highlighted, and markers not matching the results should be dimmed (reduced opacity) for visual distinction. Search result markers must be clearly distinguishable from regular markers through color or size changes.
+- **FR-016** (FR7.4): Based on MCP results, a 1-line "Action Hint (next action suggestion)" must be generated and provided to the user. The Action Hint is placed at the top of the "Suggested via MCP" section in the post popup with an emphasized style (background color or bold), and must suggest a specific next action rather than a general summary (e.g., "Check Step 2 first," "Refer to related issue #42"). The Action Hint must be clickable and navigate to the corresponding resource when clicked.
+- **FR-017** (FR7.5): Multiple results must be displayed in a single combined UI grouped by category ("Suggested via MCP" label included). Results must be displayed as sections separated by source category rather than a flat list, making multi-source integration visually clear. **Display order: M365 internal resources (📁 OneDrive → 📋 SharePoint → 📧 Email) → Web resources (📄 Docs → 🐛 Issues) → 📌 Related Posts.** M365 sources are placed at the top as primary, web sources are placed at the bottom as supplementary.
+- **FR-018**: On MCP call failure, it must gracefully degrade with a "No suggestions available" message. On partial failure, only the results from successful sources should be displayed by category, and the failed source category must indicate an "unavailable" status in its section (e.g., OneDrive success + SharePoint failure → OneDrive results displayed normally + "SharePoint unavailable" shown in the SharePoint section). Even when all M365 sources fail, web source (Docs/Issues) results are still displayed.
+- **FR-019**: Post body, PII, and sensitive data must not be logged in plain text.
+- **FR-020**: Server-side validation must be performed on input values (body length, sentence count, coordinate range).
+- **FR-021**: The post popup must display at least 2 distinct MCP UI elements: ① a categorized result list labeled "Suggested via MCP" (FR-017), ② an emphasized 1-line Action Hint at the top of the results (FR-016). These two elements must be visually clearly distinguished.
+- **FR-022**: When performing a semantic search on the map and there are 0 results within the current viewport, a "No search results in this area" notice must be provided along with an "N results outside map" indicator. Users must be able to recognize that results exist outside the viewport through this indicator, and clicking it must pan the map to that area.
+- **FR-023** (FR7.6): MCP tool invocation must follow an LLM-driven orchestration pattern:
+  1. The app creates an in-process MCP server and connects via `InMemoryTransport` (same process, no HTTP).
+  2. The app discovers available tools via `listTools()` and converts MCP tool schemas to OpenAI function-calling format.
+  3. The app sends the user query and tool definitions to GPT-4o-mini.
+  4. The LLM decides which tools to call (may call multiple tools, or choose not to call certain tools based on relevance).
+  5. The app executes the LLM's chosen tool calls via MCP `callTool()` and returns the results.
+  6. The LLM produces a final structured response (categorized results + Action Hint) based on tool outputs.
+  7. This is the standard MCP integration pattern (LLM ↔ tool-use loop), not a hardcoded tool call sequence.
+  8. The MCP server runs in-process (no sidecar) — tools can directly access the app's PostEmbedding cache, AI Foundry client, and DB.
 
 ### Key Entities
 
-- **Post**: 지도 위에 게시되는 3문장 이내의 짧은 질문/요청/링크. 작성자 ID, 본문, 태그(선택), 좌표(위도/경도), 모드(online/offline/both, 선택), 생성 시각, 만료 시각을 포함한다.
-- **Engagement**: 사용자가 특정 포스트에 보낸 참여 신호. 포스트 ID, 사용자 ID, 참여 의도(interested/join), 생성 시각을 포함한다. 동일 사용자-포스트 조합에 대해 하나만 존재한다.
+- **Post**: A short question/request/link of up to 3 sentences posted on the map. Includes author ID, body, tags (optional), coordinates (latitude/longitude), mode (online/offline/both, optional), creation timestamp, and expiration timestamp.
+- **Engagement**: A participation signal sent by a user to a specific post. Includes post ID, user ID, engagement intent (interested/join), and creation timestamp. Only one exists per user-post combination.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: 사용자가 로그인부터 포스트 생성까지 30초 이내에 완료할 수 있다.
-- **SC-002**: 사용자가 마커 클릭부터 MCP 결합 검색 결과(Docs+Posts+Issues) 및 Action Hint 확인까지 5초 이내에 완료할 수 있다.
-- **SC-003**: 전체 데모 흐름(로그인→포스트 생성→MCP 추천+Action Hint 확인→Join→TTL 만료 확인→검색으로 마커 필터링)을 2분 이내에 시연할 수 있다(Demo Script 6단계 참조).
-- **SC-004**: 3문장 초과 입력 시 100%의 경우 UI와 서버 양쪽에서 거부된다.
-- **SC-005**: TTL 만료 후 해당 포스트가 지도와 조회 결과에서 100% 제외된다.
-- **SC-006**: MCP/AI Foundry 서버 장애 시에도 앱의 나머지 기능(포스트 생성/조회/참여)이 정상 동작한다.
-- **SC-008**: MCP 결합 검색 결과에 최소 2개 소스 카테고리(Docs+Posts 또는 Docs+Issues)가 포함된다.
-- **SC-009**: 지도 검색 시 AI Foundry semantic search 결과가 현재 지도 뷰 영역 내 마커로 표시되며, 검색 결과 마커는 강조 표시(색상/크기 변화)로 일반 마커와 시각적으로 구분되고, 결과 외 마커는 흐리게(dimmed) 처리된다.
-- **SC-007**: 동일 사용자의 중복 참여가 100% 멱등 처리되어 카운트가 정확하다.
+- **SC-001**: A user can complete the process from login to post creation within 30 seconds.
+- **SC-002**: A user can complete the process from marker click to viewing MCP combined search results (Docs+Posts+Issues) and Action Hint within 5 seconds.
+- **SC-003**: The entire demo flow (login → post creation → MCP recommendations + Action Hint verification → Join → TTL expiration verification → marker filtering via search) can be demonstrated within 2 minutes (see Demo Script 6 steps).
+- **SC-004**: When more than 3 sentences are entered, it is rejected on both the UI and server side in 100% of cases.
+- **SC-005**: After TTL expiration, the post is excluded from the map and query results in 100% of cases.
+- **SC-006**: Even during MCP/AI Foundry server failures, the remaining app features (post creation/viewing/engagement) function normally.
+- **SC-008**: MCP combined search results include at least 2 source categories, with **at least 1 M365 source (OneDrive/SharePoint/Email)** included (e.g., OneDrive+Posts or OneDrive+Docs+Posts).
+- **SC-009**: During map search, AI Foundry semantic search results are displayed as markers within the current map view area; search result markers are visually distinguished from regular markers with highlight (color/size changes), and non-result markers are dimmed.
+- **SC-007**: Duplicate engagement by the same user is handled idempotently in 100% of cases, ensuring accurate counts.
 
 ## Assumptions
 
-- MVP 대상 사용자는 이미 Entra ID 계정을 보유한 내부 직원(CSA/SE/SA 등)이다.
-- 사용자의 실시간 GPS 위치는 사용하지 않으며, 좌표는 지도 클릭/중심점으로 결정한다.
-- TTL 옵션은 24시간 / 72시간 / 7일 중 선택하며, 데모용으로 짧은 TTL(1~5분)도 지원한다.
-- TTL 데모 단계(짧은 TTL 만료 확인)는 조회 시점 필터링(`expiresAt > now`)만으로 달성 가능하며, 실시간 push/WebSocket은 불필요하다. 사용자가 지도를 새로고침하면 만료 포스트가 마커에서 사라진다.
-- MCP 서버는 외부 데이터 소스(Docs + Issues) 중 최소 1종을 연동하며, AI Foundry를 통해 semantic search와 Action Hint 생성을 수행한다.
-- AI Foundry 연동은 Azure AI Foundry SDK 또는 REST API를 통해 이루어지며, 모델 선택은 plan 단계에서 결정한다.
-- 팝업 참여 버튼은 최대 2개(Interested/Join)이며, 추가 액션(채팅/미팅)은 후속 spec에서 다룬다.
-- 읽기 전용 모드(비인증 사용자)의 범위는 지도 열람 + 마커 표시까지 허용하고, 포스트 상세 팝업은 인증 후 접근을 기본으로 한다.
-- MVP 인증 합격 기준: ① Entra ID 로그인 성공, ② 세션 유지(persistence) — 로그인 후 새로고침해도 세션 유지, ③ 쓰기 경로 차단(write guard) — 비인증 사용자의 포스트 생성/참여 차단. 이 3가지가 동작하면 MVP 인증은 합격이다.
+- The MVP target users are internal employees (CSA/SE/SA, etc.) who already have Entra ID accounts.
+- Real-time GPS location of users is not used; coordinates are determined by map click/center point.
+- TTL options are selected from 24 hours / 72 hours / 7 days, and short TTLs (1–5 minutes) are also supported for demo purposes.
+- The TTL demo step (short TTL expiration verification) can be achieved with query-time filtering (`expiresAt > now`) alone; real-time push/WebSocket is unnecessary. When users refresh the map, expired posts disappear from the markers.
+- The MCP server integrates **M365 internal resource sources (OneDrive, SharePoint, Email) as primary**, combines external data sources (Docs + Issues) as supplementary, and performs semantic search and Action Hint generation through AI Foundry.
+- AI Foundry integration is done via the Azure AI Foundry SDK or REST API; model selection is determined in the plan phase.
+- Popup engagement buttons are limited to 2 (Interested/Join); additional actions (chat/meeting) will be addressed in subsequent specs.
+- The scope of read-only mode (unauthenticated users) allows map browsing + marker display, and accessing post detail popups requires authentication by default.
+- MVP authentication acceptance criteria: ① Entra ID login success, ② session persistence — session is maintained even after refreshing post-login, ③ write guard — post creation/engagement is blocked for unauthenticated users. If these 3 work, the MVP authentication passes.
 
 ## UX Guidelines (Zenly-light)
 
-- 메인 화면은 "지도 1스크린 + 플로팅 + 버튼" 패턴을 유지한다.
-- 팝업은 최대 1~2개의 행동 버튼만 제공한다(가벼움 유지).
-- 색상/아이콘은 가벼운 톤(파스텔/미니멀)으로 구성한다.
-- 2분 데모 스크립트가 자연스럽게 진행되도록 동선을 단순화한다.
+- The main screen maintains the "single-screen map + floating + button" pattern.
+- Popups provide only 1–2 action buttons at most (maintaining lightness).
+- Colors/icons are composed in light tones (pastel/minimal).
+- Navigation is simplified so the 2-minute demo script flows naturally.
 
 ## Safety & Reliability (MVP Baseline)
 
-- 입력 검증: 본문 길이/문장 수/좌표 범위/URL 형식 검증을 수행한다.
-- 레이트 리밋(간단) 또는 최소한의 남용 방지를 적용한다.
-- 로그 마스킹: 사용자 입력 원문을 로그에 남기지 않는다.
-- MCP 등 외부 호출은 타임아웃/실패 처리를 포함한다.
+- Input validation: body length/sentence count/coordinate range/URL format validation is performed.
+- Rate limiting (simple) or minimal abuse prevention is applied.
+- Log masking: user input text is not logged verbatim.
+- External calls such as MCP include timeout/failure handling.
 
 ## Demo Script (2 minutes)
 
-> **홈든 시나리오**: 로그인 → 지도 → 포스트 작성 → 팝업에서 MCP 추천/Action Hint → Join → 검색으로 필터링
-> **Fallback**: MCP/AI Foundry 장애 시 → 팝업에 "No suggestions available" 표시 후 Step 4(Join)로 진행. 각 단계는 독립적으로 진행 가능하며, 이전 단계 실패가 다음 단계를 차단하지 않는다.
+> **Happy path scenario**: Login → Map → Post creation → MCP recommendations/Action Hint in popup → Join → Filtering via search
+> **Fallback**: On MCP/AI Foundry failure → display "No suggestions available" in popup and proceed to Step 4 (Join). Each step can proceed independently, and failure at a previous step does not block the next step.
 
-1. **Entra ID 로그인** — 로그인 성공 → 지도 메인 화면 진입 (핸드오프: 세션 생성 확인)
-2. **포스트 생성** — 지도 중심점에서 "+" 버튼 → 3문장 포스트 작성 + TTL 선택 → 저장 (핸드오프: 지도에 새 마커 표시 확인)
-3. **MCP 추천 + Action Hint 확인** — 새 마커 클릭 → 팝업에서 ① Action Hint 1줄(강조 스타일) 확인, ② "Suggested via MCP" 카테고리별(Docs/Issues/Posts) 결과 확인 (핸드오프: MCP 실패 시 "No suggestions available" 표시 후 Step 4로 진행)
-4. **Join** — "Join" 클릭 → 참여자 수 증가 확인 (핸드오프: 참여 기록 완료)
-5. **TTL 만료** — (데모용 짧은 TTL) 포스트 만료 후 지도 새로고침 → 마커 사라짐 확인. 조회 시점 필터링만으로 동작하며 실시간 push/WebSocket은 불필요 (핸드오프: 마커 제거 확인)
-6. **검색으로 마커 필터링** — 검색어 입력 → AI Foundry semantic search → 검색 결과 마커 강조 + 나머지 마커 흐리게 처리 확인 (핸드오프: 시각적 구분 확인)
+1. **Entra ID Login** — Login success → enter map main screen (handoff: verify session creation)
+2. **Post Creation** — "+" button at map center → write 3-sentence post + select TTL → save (handoff: verify new marker on map)
+3. **MCP Recommendations + Action Hint Verification** — Click new marker → in popup: ① verify 1-line Action Hint (emphasized style), ② verify "Suggested via MCP" categorized results — **M365 internal resources (OneDrive/SharePoint/Email) displayed first**, supplemented by web resources (Docs/Issues) and related Posts (handoff: on MCP failure, display "No suggestions available" and proceed to Step 4)
+4. **Join** — Click "Join" → verify participant count increase (handoff: engagement recorded)
+5. **TTL Expiration** — (demo short TTL) After post expiration, refresh map → verify marker disappears. Operates via query-time filtering only; real-time push/WebSocket is unnecessary (handoff: verify marker removal)
+6. **Marker Filtering via Search** — Enter search query → AI Foundry semantic search → verify search result markers are highlighted + remaining markers are dimmed (handoff: verify visual distinction)

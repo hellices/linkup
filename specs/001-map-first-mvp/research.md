@@ -84,41 +84,109 @@ If `better-sqlite3` native addon fails to install (rare on Windows/Mac/Linux), f
 ## R4. MCP Integration (Enhanced — FR7.1~7.5)
 
 ### Decision
-Use `@modelcontextprotocol/sdk` (v1.26+) with Streamable HTTP transport.
+Use `@modelcontextprotocol/sdk` (v1.26+) with **InMemoryTransport** (in-process).
+Integrate the MCP server as an internal module within the Next.js app, running in a single process.
 Build a custom MCP server that exposes multi-source search tools (Docs + Issues + Posts)
 and integrates with AI Foundry for semantic search and Action Hint generation.
 
 ### Rationale
 - Official TypeScript SDK: `@modelcontextprotocol/sdk` (14M weekly downloads, MIT)
 - Peer dependency: `zod` for schema validation
-- Client API: `Client.connect()` → `client.callTool("search_combined", { query, sources })` → returns combined results
-- Works in Next.js API routes (pure Node.js, no browser APIs)
-- Streamable HTTP transport (`StreamableHTTPClientTransport`) for remote MCP server
+- Client API: `Client.connect()` → `client.listTools()` → tool definitions for LLM → `client.callTool(name, args)` → results
+- **InMemoryTransport**: `InMemoryTransport.createLinkedPair()` — connects MCP client and server within the same process
+- No separate HTTP server/port needed, eliminates per-request transport bugs
+- Tools can directly access the app's AI Foundry client and PostEmbedding cache
+
+### LLM-Driven MCP Tool Orchestration Pattern (FR-023)
+The standard MCP integration pattern uses LLM function-calling to drive tool selection.
+The MCP server runs as an internal module (`app/lib/mcp/server.ts`),
+connected to the client via `InMemoryTransport`.
+
+```
+1. App: Create McpServer singleton + InMemoryTransport.createLinkedPair()
+2. App → MCP Server (in-process): listTools() → discover available tools + schemas
+3. App: Convert MCP tool schemas → OpenAI function-calling format
+4. App → LLM (GPT-4o-mini): user query + tool definitions
+5. LLM → App: tool_calls[] (which tools to call with what args)
+6. App → MCP Server (in-process): callTool(name, args) for each tool call
+7. App → LLM: tool results as assistant messages
+8. LLM → App: final structured response (JSON with categorized results + actionHint)
+```
+
+**Why in-process integration**:
+- Tools directly access the PostEmbedding cache — no HTTP callback needed for `search_posts`
+- Single AI Foundry client — eliminates duplicate code
+- Reduced operational complexity — single process, single deployment
+
+**Why LLM orchestration matters**:
+- The app doesn't hardcode which tools to call — if new tools are added to the
+  MCP server (e.g., `search_stackoverflow`), the LLM automatically discovers and uses them
+- The LLM can choose NOT to call certain tools if irrelevant to the query
+- The LLM generates the Action Hint as part of its final response,
+  using all tool results as context (no separate `generate_action_hint` tool call needed from app side)
+- This is the canonical MCP pattern: LLM ↔ tool-use loop
+
+**Fallback when AI Foundry is unavailable**:
+- Fall back to hardcoded parallel tool calls (existing pattern without LLM)
+- Template-based Action Hint generation
 
 ### Enhanced MCP Server Plan (FR7.1~7.5)
-- **FR7.1 — Multi-source search**: MCP 서버는 최소 2개 도구를 노출한다:
-  - `search_docs`: Azure Docs/Learn 검색 (또는 MVP용 하드코딩 데이터)
-  - `search_issues`: GitHub Issues 검색 (또는 MVP용 하드코딩 데이터)
-  - `search_posts`: 내부 포스트 DB semantic search (AI Foundry 임베딩 활용)
-- **FR7.2 — AI Foundry semantic search**: 포스트 텍스트를 임베딩하고,
-  Docs/Issues/Posts를 cosine similarity로 랭킹하여 연관도 높은 결과를 반환한다.
-- **FR7.3 — 지도 재필터링**: `search_combined` 도구에 `bbox` 파라미터를 추가하여,
-  좌표가 있는 결과(Posts)를 현재 지도 뷰 영역으로 재필터링한다.
-- **FR7.4 — Action Hint**: AI Foundry `gpt-4o-mini`를 호출하여 검색 결과 기반
-  1줄 다음 행동 제안을 생성한다. 별도 도구 `generate_action_hint`로 노출.
-- **FR7.5 — 결합 UI**: API 응답은 `{ docs: [], issues: [], posts: [], actionHint: string }` 형태로
-  카테고리별 결과를 반환하고, UI에서 하나의 결합된 섹션으로 표시한다.
+- **FR7.1 — Multi-source search**: The MCP server exposes search tools in two tiers:
+  - **PRIMARY (M365 internal resources)**:
+    - `search_m365`: M365 unified search (consolidates OneDrive/SharePoint/Email into a single tool)
+  - **SUPPLEMENTARY (web resources)**:
+    - `search_docs`: Azure Docs/Learn search (or hardcoded data for MVP)
+    - `search_issues`: GitHub Issues search (or hardcoded data for MVP)
+  - `search_posts`: Internal post DB semantic search (using AI Foundry embeddings)
+- **FR7.2 — AI Foundry semantic search**: MCP tools use the app's shared AI Foundry client (`app/lib/ai-foundry.ts`)
+  to embed query text and rank against pre-embedded Docs/Issues via cosine similarity.
+  Posts search directly accesses the PostEmbedding cache via `getAllEmbeddings()` (no HTTP callback needed).
+- **FR7.3 — Map re-filtering**: Adds a `bbox` parameter to the `search_combined` tool,
+  re-filtering coordinate-bearing results (Posts) to the current map view area.
+- **FR7.4 — Action Hint**: MCP tools call `gpt-4o-mini` via the app's AI Foundry client
+  to generate a one-line next action suggestion. Falls back to template when AI Foundry is unavailable.
+  Exposed as a separate `generate_action_hint` tool.
+- **FR7.5 — Combined UI**: The API response returns results by category in the form `{ m365: [], docs: [], issues: [], posts: [], actionHint: string }`,
+  and the UI displays them as a single combined section with **M365 sources at the top (primary) and web sources at the bottom (supplementary)**.
+
+### MCP Server In-Process Integration
+- MCP server runs as an internal module (`app/lib/mcp/server.ts`) — no separate process
+- Client-server connection via `InMemoryTransport.createLinkedPair()`
+- All tools share the app's single AI Foundry client (`app/lib/ai-foundry.ts`)
+- `search_posts` directly accesses the PostEmbedding cache — HTTP callback eliminated
+
+**Simplified Data Flow (in-process)**:
+```
+Next.js App (:3000)
+├── AI Foundry (embeddings + chat)───┐
+│   └── PostEmbedding cache (in-memory)  │
+├── MCP Server (in-process)             │
+│   ├── search_docs: embed → cosine    │ same process
+│   ├── search_issues: embed → cosine  │ direct access
+│   ├── search_posts: PostEmbedding ←─┘
+│   └── action_hint: GPT-4o-mini
+└── MCP Client (InMemoryTransport)
+    └── LLM orchestration (function-calling)
+```
 
 ### Graceful Degrade Strategy
-- 전체 MCP 서버 장애: "No suggestions available" 표시
-- 부분 소스 실패 (e.g., Issues 실패): 성공한 소스(Docs/Posts)만 표시, 실패 소스는 "unavailable" 라벨
-- Action Hint 생성 실패: 힌트 영역 숨김, 결과 목록만 표시
-- AI Foundry 임베딩 실패: Fallback으로 키워드 기반 텍스트 매칭 사용
+- Total MCP server failure: Display "No suggestions available"
+- Partial source failure (e.g., SharePoint fails): Display only successful sources (OneDrive/Email/Docs/Posts), show "unavailable" label for failed sources
+- Even if all M365 sources fail, web source results (Docs/Issues) are still displayed
+- Action Hint generation failure (AI Foundry unavailable): template fallback; hide hint area on final failure
+- AI Foundry embedding failure (query embedding fails): return all pre-embedded data (fallback)
+- `/api/search` callback failure: `search_posts` returns an empty array
 
 ### Alternatives Considered
-- **Community `@modelcontextprotocol/server-fetch`**: Too general, multi-source 결합 불가
+- **Community `@modelcontextprotocol/server-fetch`**: Too general, cannot combine multi-source results
 - **Direct API call without MCP**: Violates Constitution principle 4.1 ("Suggested Resources MUST go through MCP server")
-- **단일 search_resources 도구**: FR7.5 결합 증명에 불충분 — 소스별 분리 + 결합 필요
+- **Single search_resources tool**: Insufficient to prove FR7.5 combined approach — requires per-source separation + combination
+- **Hardcoded tool calls without LLM**: Technically works but misses the core value of MCP
+  (dynamic tool discovery + LLM-driven selection). Does not scale when new tools are added.
+  Used only as a fallback when AI Foundry is unavailable.
+- **Separate sidecar process (:3001)**: Requires HTTP callback for `search_posts` (PostEmbedding cache
+  is in app memory), per-request McpServer instance management, duplicate AI Foundry clients,
+  and dual-process deployment. Adds operational complexity without benefit for this MVP.
 
 ---
 
@@ -140,43 +208,43 @@ and integrates with AI Foundry for semantic search and Action Hint generation.
 
 ### Decision
 Use `openai` npm package (AzureOpenAI class) + `@azure/identity` for
-Azure OpenAI Service 호출. Embeddings(semantic search)와 Chat Completions(Action Hint)를 모두 처리.
+Azure OpenAI Service calls. Handles both Embeddings (semantic search) and Chat Completions (Action Hint).
 
 ### Rationale
-- `openai` 패키지는 `AzureOpenAI` 클래스를 제공하며 Azure OpenAI 엔드포인트에 직접 연결
-- AI Foundry 프로젝트 클라이언트(`@azure/ai-projects`)는 MVP에 과도함 — `openai` 패키지만으로 충분
-- 2개 모델 배포 필요: `text-embedding-3-small` (임베딩), `gpt-4o-mini` (Action Hint)
+- The `openai` package provides the `AzureOpenAI` class that connects directly to Azure OpenAI endpoints
+- The AI Foundry project client (`@azure/ai-projects`) is overkill for MVP — the `openai` package alone is sufficient
+- 2 model deployments required: `text-embedding-3-small` (embeddings), `gpt-4o-mini` (Action Hint)
 
 ### Semantic Search Pattern (FR7.2, FR7.3)
-- 포스트 텍스트 → `text-embedding-3-small`로 임베딩 벡터 생성
-- Docs/Issues/Posts 데이터의 사전 임베딩 벡터와 cosine similarity 비교
-- MVP: 소규모 데이터셋이므로 인메모리 벡터 비교로 충분
-- 지도 재필터링(FR7.3): Posts 결과 중 bbox 범위 내 좌표만 필터링
+- Post text → generate embedding vector via `text-embedding-3-small`
+- Compare with pre-embedded vectors of Docs/Issues/Posts data via cosine similarity
+- MVP: Small dataset so in-memory vector comparison is sufficient
+- Map re-filtering (FR7.3): Filter Posts results to only coordinates within bbox range
 
 ### Action Hint Pattern (FR7.4)
-- 검색 결과(상위 3개)를 컨텍스트로 `gpt-4o-mini` Chat Completion 호출
+- Call `gpt-4o-mini` Chat Completion with top 3 search results as context
 - System prompt: "Based on these search results, suggest ONE next action in one sentence."
-- `max_tokens: 60` 으로 제한하여 1줄 보장
-- 실패 시: 힌트 영역 숨김 (graceful degrade)
+- Limit to `max_tokens: 60` to ensure one-line output
+- On failure: hide hint area (graceful degrade)
 
 ### Authentication
-- Chat Completions: `DefaultAzureCredential` via `getBearerTokenProvider` 지원
-- Embeddings v1 API: API key 필수 (`AZURE_OPENAI_API_KEY`)
+- Chat Completions: `DefaultAzureCredential` via `getBearerTokenProvider` supported
+- Embeddings v1 API: API key required (`AZURE_OPENAI_API_KEY`)
 - Entra ID scope: `https://cognitiveservices.azure.com/.default`
 
 ### Required Env Vars
-- `AZURE_OPENAI_ENDPOINT`: Azure OpenAI 리소스 엔드포인트
-- `AZURE_OPENAI_API_KEY`: API 키 (임베딩용)
-- `AZURE_OPENAI_CHAT_DEPLOYMENT`: gpt-4o-mini 배포명
-- `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`: text-embedding-3-small 배포명
+- `AZURE_OPENAI_ENDPOINT`: Azure OpenAI resource endpoint
+- `AZURE_OPENAI_API_KEY`: API key (for embeddings)
+- `AZURE_OPENAI_CHAT_DEPLOYMENT`: gpt-4o-mini deployment name
+- `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`: text-embedding-3-small deployment name
 
 ### Alternatives Considered
-- **@azure-rest/ai-inference**: Beta(1.0.0-beta.6), 모델-불가지론적이지만 불안정
-- **@azure/ai-projects**: AI Foundry 프로젝트 전체 클라이언트, MVP에 과도
-- **Azure AI Search**: 프로덕션용 최적이지만 설정 시간 과다 (인덱스 생성 등)
+- **@azure-rest/ai-inference**: Beta (1.0.0-beta.6), model-agnostic but unstable
+- **@azure/ai-projects**: Full AI Foundry project client, overkill for MVP
+- **Azure AI Search**: Optimal for production but excessive setup time (index creation, etc.)
 
 ### Fallback
-Azure OpenAI 서비스 미사용 시(데모 환경 제한): 하드코딩된 임베딩 + 결과로 대체 가능.
+If Azure OpenAI Service is unavailable (demo environment limitations): can substitute with hardcoded embeddings + results.
 
 ---
 
@@ -190,7 +258,7 @@ Count sentence-ending punctuation (`.`, `?`, `!`, and Korean equivalents) while 
 
 ### Rationale
 - Spec FR-005 requires both UI and server validation
-- Edge case from spec: "URL 내 점(.)은 문장 구분으로 처리하지 않아야 한다"
+- Edge case from spec: "Dots (.) inside URLs must not be treated as sentence delimiters"
 - Simple regex approach is sufficient for MVP; ML-based sentence detection is overkill
 - Validation function shared between frontend (real-time feedback) and API route (enforcement)
 

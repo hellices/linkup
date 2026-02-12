@@ -1,4 +1,6 @@
-// T023: AI Foundry client — embeddings (text-embedding-3-small) + chat (gpt-4o-mini) + fallback
+// T023: AI Foundry client — embeddings (text-embedding-3-small) + chat (gpt-4o-mini for MCP tool orchestration)
+// Embeddings: used by /api/search for PostEmbedding cache
+// Chat: used by mcp-client.ts for LLM-driven MCP tool orchestration
 import OpenAI from "openai";
 import type { PostEmbedding } from "@/app/types";
 
@@ -17,12 +19,13 @@ function getEmbeddingClient(): OpenAI | null {
     _embeddingClient = new OpenAI({
       baseURL: `https://${resourceName}.openai.azure.com/openai/v1/`,
       apiKey: process.env.AZURE_OPENAI_API_KEY,
+      timeout: 10_000, // 10s — fail fast for embeddings
     });
   }
   return _embeddingClient;
 }
 
-// Lazy-init for chat completions (can use API key or DefaultAzureCredential)
+// Lazy-init for chat completions — used for LLM-driven MCP tool orchestration
 let _chatClient: OpenAI | null = null;
 function getChatClient(): OpenAI | null {
   if (!process.env.AZURE_OPENAI_API_KEY || !process.env.AZURE_OPENAI_ENDPOINT) {
@@ -34,9 +37,25 @@ function getChatClient(): OpenAI | null {
     _chatClient = new OpenAI({
       baseURL: `https://${resourceName}.openai.azure.com/openai/v1/`,
       apiKey: process.env.AZURE_OPENAI_API_KEY,
+      timeout: 15_000, // 15s — fail fast for chat completions
     });
   }
   return _chatClient;
+}
+
+/**
+ * Get chat client for MCP tool orchestration.
+ * Returns null if AI Foundry is unavailable.
+ */
+export function getOrchestrationClient(): OpenAI | null {
+  return getChatClient();
+}
+
+/**
+ * Get the chat model deployment name.
+ */
+export function getChatDeploymentName(): string {
+  return process.env.AZURE_OPENAI_CHAT_DEPLOYMENT ?? "gpt-4o-mini";
 }
 
 /**
@@ -88,41 +107,4 @@ export function removeEmbedding(postId: string): void {
  */
 export function getAllEmbeddings(): PostEmbedding[] {
   return Array.from(embeddingCache.values());
-}
-
-/**
- * Generate Action Hint using gpt-4o-mini.
- * Returns null if generation fails.
- */
-export async function generateActionHint(
-  postText: string,
-  searchResults: Array<{ title: string; description: string; sourceType: string }>
-): Promise<string | null> {
-  const client = getChatClient();
-  if (!client) return null;
-
-  try {
-    const deploymentName =
-      process.env.AZURE_OPENAI_CHAT_DEPLOYMENT ?? "gpt-4o-mini";
-    const response = await client.chat.completions.create({
-      model: deploymentName,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Based on the search results provided, suggest ONE concrete next action in one sentence. Be specific — suggest a particular document to read, issue to check, or action to take. Write in the same language as the post text. Keep it concise and actionable.",
-        },
-        {
-          role: "user",
-          content: `Post: "${postText}"\n\nSearch results:\n${JSON.stringify(searchResults.slice(0, 3))}`,
-        },
-      ],
-      max_tokens: 60,
-      temperature: 0.3,
-    });
-    return response.choices[0]?.message?.content?.trim() ?? null;
-  } catch (err) {
-    console.log("[AI Foundry] Action Hint failed:", (err as Error).message);
-    return null;
-  }
 }

@@ -12,6 +12,7 @@ type AtlasMarker = any;
 interface MapViewProps {
   posts: PostSummary[];
   searchResultPostIds: Set<string> | null;
+  currentUserId?: string;
   onMapClick: (lat: number, lng: number) => void;
   onViewportChange: (
     swLat: number,
@@ -24,12 +25,14 @@ interface MapViewProps {
 export default function MapView({
   posts,
   searchResultPostIds,
+  currentUserId,
   onMapClick,
   onViewportChange,
 }: MapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<AtlasMap | null>(null);
   const markersRef = useRef<AtlasMarker[]>([]);
+  const markerClickedRef = useRef(false);
   const [selectedPost, setSelectedPost] = useState<PostSummary | null>(null);
   const [popupPosition, setPopupPosition] = useState<{
     x: number;
@@ -59,8 +62,14 @@ export default function MapView({
     });
 
     map.events.add("ready", () => {
-      // Map click → create post
+      // Map click → create post (only if not clicking a marker)
       map.events.add("click", (e: any) => {
+        // If the click target is an HTML marker, skip
+        if (e.shapes && e.shapes.length > 0) return;
+        if (markerClickedRef.current) {
+          markerClickedRef.current = false;
+          return;
+        }
         if (e.position) {
           onMapClick(e.position[1], e.position[0]);
         }
@@ -118,30 +127,36 @@ export default function MapView({
         searchResultPostIds === null || searchResultPostIds.has(post.id);
       const isDimmed = searchResultPostIds !== null && !searchResultPostIds.has(post.id);
 
-      const markerEl = document.createElement("div");
-      markerEl.style.width = isSearchResult && searchResultPostIds !== null ? "20px" : "16px";
-      markerEl.style.height = isSearchResult && searchResultPostIds !== null ? "20px" : "16px";
-      markerEl.style.borderRadius = "50%";
-      markerEl.style.border = "2px solid white";
-      markerEl.style.cursor = "pointer";
-      markerEl.style.boxShadow = "0 2px 4px rgba(0,0,0,0.3)";
-
+      const pinSize = isSearchResult && searchResultPostIds !== null ? 44 : 36;
+      let bgColor = "#60a5fa"; // Zenly pastel blue
+      let ringColor = "rgba(96,165,250,0.3)";
+      let opacity = 1;
+      let emoji = "💬";
       if (isDimmed) {
-        markerEl.style.backgroundColor = "#9ca3af";
-        markerEl.style.opacity = "0.4";
+        bgColor = "#d1d5db";
+        ringColor = "transparent";
+        opacity = 0.35;
+        emoji = "💬";
       } else if (searchResultPostIds !== null) {
-        markerEl.style.backgroundColor = "#f97316"; // highlight orange
-        markerEl.style.transform = "scale(1.2)";
-      } else {
-        markerEl.style.backgroundColor = "#3b82f6"; // default blue
+        bgColor = "#fb923c"; // Zenly orange highlight
+        ringColor = "rgba(251,146,60,0.3)";
+        emoji = "🔍";
       }
+
+      const htmlContent = `<div style="cursor:pointer;opacity:${opacity};position:relative;display:flex;align-items:center;justify-content:center">
+        <div style="position:absolute;width:${pinSize + 12}px;height:${pinSize + 12}px;border-radius:50%;background:${ringColor};animation:pulse-ring 2s ease-out infinite"></div>
+        <div style="width:${pinSize}px;height:${pinSize}px;border-radius:50%;background:linear-gradient(135deg,${bgColor},${bgColor}dd);border:3px solid white;box-shadow:0 3px 12px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:${pinSize * 0.4}px;animation:bounce-in 0.35s cubic-bezier(0.34,1.56,0.64,1)">${emoji}</div>
+      </div>`;
 
       const marker = new atlas.HtmlMarker({
         position: [post.lng, post.lat],
-        htmlContent: markerEl,
+        htmlContent,
       });
 
-      map.events.add("click", marker, () => {
+      map.events.add("click", marker, (e: any) => {
+        // Stop propagation so map click (create post) doesn't fire
+        markerClickedRef.current = true;
+        if (e) e.preventDefault?.();
         setSelectedPost(post);
         const pixel = map.positionsToPixels([[post.lng, post.lat]]);
         if (pixel && pixel[0]) {
@@ -179,18 +194,19 @@ export default function MapView({
 
       {/* Empty state */}
       {posts.length === 0 && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur rounded-lg px-4 py-2 shadow text-sm text-gray-500 z-10">
-          이 지역에는 아직 포스트가 없습니다
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 zenly-card px-5 py-3 text-sm text-gray-400 z-10 zenly-bounce">
+          🗺️ No posts in this area yet
         </div>
       )}
 
       {/* Post Popup */}
       {selectedPost && (
-        <div className="absolute top-0 right-0 h-full w-96 z-20">
+        <div className="absolute top-0 right-0 h-full w-96 z-20 zenly-bounce">
           <PostPopup
             post={selectedPost}
             onClose={handleClosePopup}
             onEngagementUpdate={handleEngagementUpdate}
+            currentUserId={currentUserId}
           />
         </div>
       )}

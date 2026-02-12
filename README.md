@@ -1,6 +1,6 @@
 # LinkUp — Map-First Collaboration MVP
 
-3문장 포스트 + 지도 기반 탐색 + MCP 추천 + 협업 매칭을 100분 안에 빌드한 MVP.
+MVP built in 100 minutes with 3-sentence posts + map-based discovery + MCP recommendations + collaboration matching.
 
 ## Architecture
 
@@ -17,13 +17,13 @@ Next.js 14 App (:3000)           MCP Server (:3001)
 
 ## Key Features
 
-- **Map-First**: Azure Maps 기반 전체 화면 지도 위에 포스트 마커 표시
-- **3-Sentence Posts**: 문장 제한 검증 (URL/ellipsis 제외), TTL 필수
-- **AI Foundry Semantic Search**: `text-embedding-3-small` 임베딩 → cosine similarity → 지도 bbox 재필터링
-- **MCP Multi-Source**: Docs + Issues + Posts 결합 검색 → "Suggested via MCP" 카테고리별 표시
-- **Action Hint**: 검색 결과 기반 1줄 다음 행동 제안 (강조 스타일)
-- **Collaboration**: Interested / Join 참여 (멱등 처리)
-- **Ephemeral**: TTL 만료 → 조회 시점 필터링으로 자동 제외
+- **Map-First**: Full-screen map with post markers powered by Azure Maps
+- **3-Sentence Posts**: Sentence limit validation (excluding URLs/ellipsis), TTL required
+- **AI Foundry Semantic Search**: `text-embedding-3-small` embeddings → cosine similarity → map bbox re-filtering
+- **MCP Multi-Source**: Combined search across Docs + Issues + Posts → categorized display with "Suggested via MCP"
+- **Action Hint**: One-line next-action suggestion based on search results (highlighted style)
+- **Collaboration**: Interested / Join participation (idempotent)
+- **Ephemeral**: TTL expiration → automatically excluded via query-time filtering
 
 ## Quick Start
 

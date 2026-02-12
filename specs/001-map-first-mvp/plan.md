@@ -5,39 +5,77 @@
 
 ## Summary
 
-LinkUp은 Entra ID 인증 사용자가 지도 위에 3문장 이내 포스트를 게시하고, AI Foundry 기반 semantic search로 유사 포스트/문서/이슈를 추천받으며, MCP를 통해 multi-source 결합 검색(Docs + Issues) + Action Hint를 제공받고, Interested/Join으로 협업을 시작하는 지도 중심 초경량 앱의 MVP이다. 100분 내 End-to-End 구현하며, 전체 흐름을 2분 데모로 시연 가능해야 한다.
+LinkUp is an MVP of a map-centric ultra-lightweight app where Entra ID-authenticated users post up to 3-sentence messages on a map, receive recommendations for **M365 internal resources (OneDrive files/PPT, SharePoint documents, Outlook emails) as primary**, and supplementarily similar posts/docs/issues via AI Foundry-based semantic search, get multi-source combined search (M365 + Docs + Issues) + Action Hints through MCP, and initiate collaboration via Interested/Join. The End-to-End implementation must be completed within 100 minutes, and the entire flow must be demonstrable in a 2-minute demo.
 
-**핵심 기술 접근**:
-- Next.js 14 App Router + TypeScript 단일 프로젝트
-- `azure-maps-control` + `react-azure-maps`로 지도 렌더링
-- Auth.js v5 (NextAuth beta) + Entra ID provider로 인증
-- `better-sqlite3`로 경량 영속 저장
-- `openai` (AzureOpenAI) + `@azure/identity`로 AI Foundry (임베딩 + 챗) 연동
-- `@modelcontextprotocol/sdk`로 MCP 서버 연동 (Docs + Issues + Posts 결합)
+**Core Technical Approach**:
+- Next.js 14 App Router + TypeScript single project
+- Map rendering with `azure-maps-control` + `react-azure-maps`
+- Authentication with Auth.js v5 (NextAuth beta) + Entra ID provider
+- Lightweight persistent storage with `better-sqlite3`
+- AI Foundry (embeddings + chat) integration with `openai` (AzureOpenAI) + `@azure/identity`
+- MCP server integration with `@modelcontextprotocol/sdk` (Docs + Issues + Posts combined)
 
 ## Objective
 
-100분 내에 다음 End-to-End 경험을 완성한다:
+Complete the following End-to-End experience within 100 minutes:
 
-- Entra 로그인
-- Azure Maps 지도 표시
-- 3문장 포스트 생성(TTL)
-- 마커로 지도 표시
-- 포스트 작성 시 AI Foundry 기반 연관 추천(Posts + Docs + Issues 중 최소 2종)
-- 지도에서 검색 시 AI Foundry semantic search → 지도 영역 재필터링 표시
-- MCP를 통한 multi-source 결합(Suggested via MCP + Action Hint)
+- Entra login
+- Azure Maps map display
+- 3-sentence post creation (TTL)
+- Display posts as markers on the map
+- AI Foundry-based related recommendations when creating a post (at least 2 of Posts + Docs + Issues)
+- AI Foundry semantic search when searching on the map → re-filter and display within the map viewport
+- Multi-source combination via MCP (Suggested via MCP + Action Hint)
 - Interested/Join
-- TTL 만료 제외 처리
+- TTL expiration exclusion handling
 
-전체 흐름은 2분 데모 가능해야 한다.
+The entire flow must be demonstrable in a 2-minute demo.
 
 ## Timebox Strategy (100 minutes)
 
-- **AI Foundry 구현 비중 증가** → 대신 UI/부가 기능 축소
-- **MCP 조회는 "Docs + (선택) Issues" 최소 구성**
-- **Action Hint 생성은 간단 템플릿 방식**
-- **지도-검색 재필터링은 semantic 결과 + bbox filtering**
-- 스코어/랭킹/대시보드 기능은 이번 Plan에서 제외
+- **Increase AI Foundry implementation weight** → reduce UI/auxiliary features instead
+- **MCP queries: M365 internal resources (OneDrive/SharePoint/Email) as primary, web resources (Docs/Issues) as supplementary**
+- **Action Hint generation**: MCP server directly calls GPT-4o-mini to generate. Falls back to template when AI Foundry is unavailable.
+- **Map-search re-filtering uses semantic results + bbox filtering**
+- Score/ranking/dashboard features are excluded from this Plan
+
+## Architecture Decision: MCP In-Process Integration
+
+**Decision**: Integrate the MCP server into the Next.js app to run in a single process (InMemoryTransport).
+
+**Rationale**:
+- No separate sidecar process needed — MCP's value lies in the pattern of "exposing tools via protocol and having the LLM dynamically discover/select them," regardless of whether it's a separate process
+- `search_posts` can directly access the app's PostEmbedding cache — eliminates HTTP callback
+- Single AI Foundry client — unified in `app/lib/ai-foundry.ts` without duplicate code
+- Reduced operational complexity — single process, single deployment, no port conflicts
+- Eliminates sidecar pattern bug sources such as per-request transport creation
+
+**Architecture**:
+```
+Next.js App (:3000)
+├── app/lib/mcp/server.ts       ← McpServer singleton + tool registration
+├── app/lib/mcp/tools/
+│   ├── search-m365.ts          ← query → M365 unified search (OneDrive/SharePoint/Email) — PRIMARY
+│   ├── search-docs.ts          ← query → embed via app's ai-foundry → cosine vs pre-embedded docs — supplementary
+│   ├── search-issues.ts        ← query → embed via app's ai-foundry → cosine vs pre-embedded issues — supplementary
+│   ├── search-posts.ts         ← query → direct PostEmbedding cache access (no HTTP needed!)
+│   └── action-hint.ts          ← searchResults → GPT-4o-mini via app's ai-foundry → 1-line hint
+├── app/lib/mcp/data/
+│   ├── sample-m365.json        ← M365 unified sample data (OneDrive/SharePoint/Email)
+│   ├── sample-docs.json
+│   └── sample-issues.json
+├── app/lib/mcp-client.ts       ← In-process connection via InMemoryTransport
+└── app/lib/ai-foundry.ts       ← Single AI Foundry client (embeddings + chat)
+```
+
+**Fallback Strategy**:
+- When AI Foundry is unavailable: `search_docs`/`search_issues` return all data, `action_hint` uses template-based generation
+- When PostEmbedding cache is empty: `search_posts` returns an empty array
+
+**Rejected Alternative (separate sidecar process)**:
+- Separating the MCP server into a separate process (:3001) requires HTTP callback for `search_posts`
+- Potential for per-request McpServer instance management bugs
+- Duplicate environment variables, dual deployment management, port management overhead
 
 ## Technical Context
 
@@ -47,10 +85,10 @@ LinkUp은 Entra ID 인증 사용자가 지도 위에 3문장 이내 포스트를
 **Storage**: SQLite via `better-sqlite3` (file-based, zero-config)
 **Testing**: Vitest (unit); integration tests deferred to post-MVP
 **Target Platform**: Web (localhost:3000 for MVP)
-**Project Type**: Web application (single Next.js project + MCP server sidecar)
-**Performance Goals**: 포스트 생성 30초 이내, MCP 추천 결과 5초 이내, semantic search 3초 이내
-**Constraints**: 100분 빌드 타임박스, 2분 데모 시연 가능, AI Foundry 호출 타임아웃 5초
-**Scale/Scope**: MVP 단일 사용자 데모, 소규모 데이터셋 (인메모리 벡터 비교)
+**Project Type**: Web application (single Next.js project, MCP server in-process)
+**Performance Goals**: Post creation within 30 seconds, MCP recommendation results within 5 seconds, semantic search within 3 seconds
+**Constraints**: 100-minute build timebox, 2-minute demo capability, AI Foundry call timeout 5 seconds
+**Scale/Scope**: MVP single-user demo, small dataset (in-memory vector comparison)
 
 ## Constitution Check
 
@@ -58,104 +96,113 @@ LinkUp은 Entra ID 인증 사용자가 지도 위에 3문장 이내 포스트를
 
 | Principle | Status | Notes |
 |-----------|--------|-------|
-| 1.1 Lightweight by Design | ✅ PASS | 3문장 제한 유지, 최소 UI, 10초 내 질문 가능 |
-| 1.2 Map-First Interaction | ✅ PASS | Azure Maps Web SDK 사용, 지도 중심 UI |
-| 1.3 Connection Over Storage | ✅ PASS | Interested/Join → 다음 행동으로 연결, MCP Action Hint 제공 |
-| 2.1 Mandatory TTL | ✅ PASS | 모든 포스트에 TTL 필수, 만료 시 조회 제외 |
-| 2.2 Optional De-identified Summary | ✅ PASS | MVP에서 만료 후 데이터 삭제(요약 보관 없음) |
-| 3.1 Entra ID Auth Only | ✅ PASS | Auth.js + Entra ID provider 사용 |
-| 3.2 Minimum-Privilege | ✅ PASS | Maps: subscription key, Entra: 최소 scope |
-| 3.3 Zero Sensitive Data | ✅ PASS | 로그 마스킹, PII 미저장, FR-019 준수 |
-| 4.1 MCP as Core Capability | ✅ PASS | MCP 서버 통한 리소스 추천 필수 경로 |
-| 4.2 Multi-source Knowledge | ✅ PASS | Docs + Issues + Posts 결합 검색 |
-| 4.3 Transparency | ✅ PASS | "Suggested via MCP" 라벨 UI 표시 |
-| 5.1 Intent-based Participation | ✅ PASS | Interested/Join 2단계 (Available은 post-MVP) |
-| 5.2 No Heavy Social Graph | ✅ PASS | 친구/팔로우 기능 없음 |
-| 6.x Rewards & Reputation | ⏭ SKIP | MVP 범위 밖 (스코어/대시보드 Cut List) |
-| 7.1 Modular Architecture | ✅ PASS | UI/API/DB/MCP/AI Foundry 계층 분리 |
-| 7.2 Observability | ⚠️ PARTIAL | MVP는 console.log 수준, 구조화 로그는 post-MVP |
-| 8.1 Spec-Driven Flow | ✅ PASS | spec → plan → tasks → implement 순서 준수 |
-| 8.3 MVP First | ✅ PASS | 100분 타임박스, 2분 데모 우선 |
-| 9.x Non-Negotiable | ✅ PASS | GPS 추적/광고/영구 게시판/민감 정보 없음 |
+| 1.1 Lightweight by Design | ✅ PASS | 3-sentence limit maintained, minimal UI, can ask a question within 10 seconds |
+| 1.2 Map-First Interaction | ✅ PASS | Uses Azure Maps Web SDK, map-centric UI |
+| 1.3 Connection Over Storage | ✅ PASS | Interested/Join → connects to next action, provides MCP Action Hint |
+| 2.1 Mandatory TTL | ✅ PASS | TTL required for all posts, excluded from queries upon expiration |
+| 2.2 Optional De-identified Summary | ✅ PASS | Data deleted after expiration in MVP (no summary retention) |
+| 3.1 Entra ID Auth Only | ✅ PASS | Uses Auth.js + Entra ID provider |
+| 3.2 Minimum-Privilege | ✅ PASS | Maps: subscription key, Entra: minimum scope |
+| 3.3 Zero Sensitive Data | ✅ PASS | Log masking, no PII storage, FR-019 compliant |
+| 4.1 MCP as Core Capability | ✅ PASS | Resource recommendation via MCP server is a required path |
+| 4.2 Multi-source Knowledge | ✅ PASS | M365 internal resources (OneDrive/SharePoint/Email) + web resources (Docs/Issues) + Posts unified search |
+| 4.3 Transparency | ✅ PASS | "Suggested via MCP" label displayed in UI |
+| 5.1 Intent-based Participation | ✅ PASS | Interested/Join 2 stages (Available is post-MVP) |
+| 5.2 No Heavy Social Graph | ✅ PASS | No friends/follow functionality |
+| 6.x Rewards & Reputation | ⏭ SKIP | Outside MVP scope (Score/Dashboard in Cut List) |
+| 7.1 Modular Architecture | ✅ PASS | UI/API/DB/MCP/AI Foundry layer separation |
+| 7.2 Observability | ⚠️ PARTIAL | MVP at console.log level, structured logging is post-MVP |
+| 8.1 Spec-Driven Flow | ✅ PASS | Follows spec → plan → tasks → implement order |
+| 8.3 MVP First | ✅ PASS | 100-minute timebox, 2-minute demo priority |
+| 9.x Non-Negotiable | ✅ PASS | No GPS tracking/ads/permanent bulletin boards/sensitive data |
 
-**GATE RESULT: ✅ PASS** — 위반 없음. 7.2 Observability는 MVP 범위에서 의도적으로 최소화 (정당화: 100분 타임박스).
+**GATE RESULT: ✅ PASS** — No violations. 7.2 Observability is intentionally minimized within MVP scope (justification: 100-minute timebox).
 
 ## Milestones & Timeline
 
 ### M0 (0–10m): Baseline Setup
-- Next.js 초기화 (`create-next-app` + TypeScript + App Router)
-- 환경변수 세팅 (Azure Maps key, Entra config, MCP endpoints, AI Foundry endpoint)
-- 기본 레이아웃 + 지도 영역 자리만 배치
-- `better-sqlite3` DB 초기화 (posts, engagements 테이블)
+- Next.js initialization (`create-next-app` + TypeScript + App Router)
+- Environment variable setup (Azure Maps key, Entra config, MCP endpoints, AI Foundry endpoint)
+- Basic layout + map area placeholder
+- `better-sqlite3` DB initialization (posts, engagements tables)
 
 ### M1 (10–22m): Entra ID Auth (Login Gate)
-- Auth.js v5 + `microsoft-entra-id` provider 설정
-- 로그인/로그아웃 UI (SignIn/SignOut 버튼)
-- 비로그인 상태는 작성/참여 불가 (미들웨어 보호)
-- Auth context만 우선 연결
+- Auth.js v5 + `microsoft-entra-id` provider configuration
+- Login/logout UI (SignIn/SignOut buttons)
+- Non-authenticated users cannot create posts or participate (middleware protection)
+- Connect Auth context first
 
-### M2 (22–38m): Azure Maps 지도 렌더링 + 마커 샘플
-- `react-azure-maps` 컴포넌트 연동 (`'use client'` + `next/dynamic`)
-- 초기 지도 렌더 (기본 좌표: Redmond, WA) + 클릭 이벤트 수신
-- 샘플 마커/팝업 표시
+### M2 (22–38m): Azure Maps Map Rendering + Sample Markers
+- `react-azure-maps` component integration (`'use client'` + `next/dynamic`)
+- Initial map render (default coordinates: Redmond, WA) + click event handling
+- Sample marker/popup display
 - CSS import (`azure-maps-control/dist/atlas.min.css`)
 
-### M3 (38–58m): Post Creation (3문장 + TTL)
-- Post 모델/API 구현 (`POST /api/posts`, `GET /api/posts`)
-- 3문장 제한 (프론트+백 양쪽 검증, URL dots/ellipsis 제외)
-- TTL 저장 → 만료 제외 GET 필터 (`WHERE expiresAt > datetime('now')`)
-- 지도 클릭으로 (lat, lng) 결정
-- Post 생성 후 지도 마커 렌더
+### M3 (38–58m): Post Creation (3 Sentences + TTL)
+- Post model/API implementation (`POST /api/posts`, `GET /api/posts`)
+- 3-sentence limit (front-end + back-end validation, URL dots/ellipsis excluded)
+- TTL storage → expiration exclusion GET filter (`WHERE expiresAt > datetime('now')`)
+- Determine (lat, lng) via map click
+- Render map marker after post creation
 
-### M4 (58–75m): AI Foundry Semantic Search 기능 구성 (핵심)
-- `openai` 패키지로 `AzureOpenAI` 클라이언트 초기화
-- AI Foundry 벡터 엔드포인트 호출 (`text-embedding-3-small` 임베딩)
-- 포스트 텍스트 → 임베딩 벡터 생성 → cosine similarity 비교
-- Semantic 결과 반환 구조 확정 (`{ docs: [], issues: [], posts: [] }`)
-- "연관 포스트 추천" 데이터 쉐이프 통일
-- 지도 검색 시: semantic 결과 → 현재 지도 bbox로 재필터링 후 마커 렌더
-- Fallback: AI Foundry 미응답 시 하드코딩된 결과 반환
+### M4 (58–75m): AI Foundry Semantic Search Feature Configuration (Core)
+- Initialize `AzureOpenAI` client with the `openai` package
+- Call AI Foundry vector endpoint (`text-embedding-3-small` embeddings)
+- Post text → generate embedding vector → cosine similarity comparison
+- Finalize semantic result return structure (`{ docs: [], issues: [], posts: [] }`)
+- Unify "related post recommendations" data shape
+- Map search: semantic results → re-filter by current map bbox then render markers
+- Fallback: return hardcoded results when AI Foundry is unresponsive
 
-### M5 (75–88m): MCP Multi-Source Integration (Docs + Issues 중 최소 1종)
-- `@modelcontextprotocol/sdk` 클라이언트로 MCP 서버 호출
-  - `search_docs`: 문서 1~3개
-  - (선택) `search_issues`: 이슈 0~2개
-  - `search_posts`: 내부 포스트 semantic search
-- AI Foundry semantic 결과 + MCP 결과를 하나의 JSON으로 결합
-- Action Hint 생성 (템플릿 기반 또는 `gpt-4o-mini` 1줄 생성):
-  - ex: "Docs 기반 해결 가능성이 높습니다 — Step 2를 먼저 확인하세요."
-- 포스트 팝업에 "Suggested via MCP + Action Hint" 노출
-- Graceful degrade: 전체 실패 → "No suggestions available", 부분 실패 → 성공 소스만 표시
+### M5 (75–88m): MCP Multi-Source Integration (M365 Primary + Web Supplementary)
+- Integrate MCP server as an internal app module (`app/lib/mcp/server.ts`), connect via `InMemoryTransport`
+- **LLM-driven MCP tool orchestration** (FR-023):
+  1. `mcp-client.ts` connects to in-process McpServer via `InMemoryTransport` → discovers tools via `listTools()`
+  2. Converts MCP tool schemas to OpenAI function-calling format
+  3. Sends user query + tool definitions to GPT-4o-mini
+  4. LLM decides which tools to call (0 or more)
+  5. Executes via MCP `callTool()` → passes results back to LLM
+  6. LLM generates final response (categorized results + Action Hint)
+- Available MCP tools (directly accessible within the app):
+  - **PRIMARY (M365 internal resources)**:
+    - `search_m365`: query → M365 unified search (OneDrive/SharePoint/Email) → top 1–5
+  - **SUPPLEMENTARY (web resources)**:
+    - `search_docs`: query → embed via app's ai-foundry → cosine vs pre-embedded docs → top 1–3
+    - `search_issues`: query → embed via app's ai-foundry → cosine vs pre-embedded issues → top 0–2
+  - `search_posts`: query → direct PostEmbedding cache access → cosine → top 0–5 (no HTTP callback needed)
+  - `generate_action_hint`: searchResults → GPT-4o-mini via app's ai-foundry → 1-line hint
+- LLM-driven approach means the app does not hardcode — LLM selects tools appropriate for the query
+- Graceful degrade: total LLM/MCP failure → "No suggestions available", partial failure → display only successful sources
+- Fallback when AI Foundry is unavailable: operates with hardcoded tool call sequence (existing pattern)
 
 ### M6 (88–100m): Engagement + Demo Polish
-- Interested/Join API (`POST /api/posts/{postId}/engagement`, 멱등 upsert)
-- 참여자 수 UI 업데이트 (interestedCount, joinCount)
-- 지도-검색 UI (검색창 + 필터 버튼 최소화)
-- README에 MCP + AI Foundry 통합 흐름 설명
-- 데모 리허설 1회 수행
+- Interested/Join API (`POST /api/posts/{postId}/engagement`, idempotent upsert)
+- Participant count UI update (interestedCount, joinCount)
+- Map-search UI (search bar + minimize filter buttons)
+- Describe MCP + AI Foundry integration flow in README
+- Perform one demo rehearsal
 
 ## Scope Control (Cut List)
 
-- 스킬 태그/카테고리 자동 분류
-- 복잡한 Action Hint 생성 (LLM 고급 프롬프트 버전) → MVP는 템플릿 기반
-- 포스트 히트맵/대시보드
-- 고급 필터 UI (날짜 슬라이더, 고급 태그 선택)
-- 스코어/랭킹/리포지션 시스템
-- Available 참여 단계 (Interested/Join만 MVP 포함)
-- 구조화된 로깅/모니터링 (console.log 수준만)
-- 실시간 WebSocket 업데이트
+- Skill tag/category auto-classification
+- Post heatmap/dashboard
+- Advanced filter UI (date slider, advanced tag selection)
+- Score/ranking/reputation system
+- Available participation stage (only Interested/Join included in MVP)
+- Structured logging/monitoring (console.log level only)
+- Real-time WebSocket updates
 
 ## Deliverables
 
-- Entra 로그인 후 지도 중심 인터페이스
-- 포스트 생성 (3문장+TTL) → 지도 마커 반영
-- AI Foundry semantic search 기반:
-  - 유사 포스트 추천
-  - 지도 검색 (검색 결과만 마커로 표시)
-- MCP multi-source 결합: Docs(+Issues) 추천 + Action Hint
+- Map-centric interface after Entra login
+- Post creation (3 sentences + TTL) → reflected as map markers
+- AI Foundry semantic search-based:
+  - Similar post recommendations
+  - Map search (display only search results as markers)
+- MCP multi-source combination: **M365 internal resources as Primary** (OneDrive/SharePoint/Email) + web resources (Docs/Issues) supplementary + Action Hint
 - Interested/Join
-- 만료 제외
-- 2분 데모 가능
+- Expiration exclusion
+- 2-minute demo capability
 
 ## Project Structure
 
@@ -164,13 +211,13 @@ LinkUp은 Entra ID 인증 사용자가 지도 위에 3문장 이내 포스트를
 ```text
 specs/001-map-first-mvp/
 ├── plan.md              # This file
-├── research.md          # Phase 0 output — R1~R7 기술 리서치
-├── data-model.md        # Phase 1 output — Post, Engagement, MCP 결과 스키마
-├── quickstart.md        # Phase 1 output — 환경 설정 & 데모 스크립트
-├── contracts/           # Phase 1 output — OpenAPI 3.1 스펙
+├── research.md          # Phase 0 output — R1~R7 technical research
+├── data-model.md        # Phase 1 output — Post, Engagement, MCP result schema
+├── quickstart.md        # Phase 1 output — environment setup & demo script
+├── contracts/           # Phase 1 output — OpenAPI 3.1 spec
 │   └── openapi.yaml
 ├── checklists/
-│   └── requirements.md  # Spec 품질 체크리스트
+│   └── requirements.md  # Spec quality checklist
 └── tasks.md             # Phase 2 output (/speckit.tasks command)
 ```
 
@@ -204,22 +251,23 @@ app/
 │   ├── db.ts              # better-sqlite3 initialization
 │   ├── auth.ts            # Auth.js config
 │   ├── validation.ts      # 3-sentence validator (shared)
-│   ├── mcp-client.ts      # MCP SDK client wrapper
-│   ├── ai-foundry.ts      # Azure OpenAI embeddings + chat
-│   └── cosine.ts          # Cosine similarity utility
+│   ├── mcp-client.ts      # MCP client (InMemoryTransport, in-process)
+│   ├── ai-foundry.ts      # Azure OpenAI embeddings + chat (single client)
+│   ├── cosine.ts          # Cosine similarity utility
+│   └── mcp/               # MCP server module (in-process)
+│       ├── server.ts      # McpServer singleton + tool registration
+│       ├── tools/
+│       ├── search-m365.ts   # M365 unified search (OneDrive/SharePoint/Email) (PRIMARY)
+│       │   ├── search-docs.ts     # Web docs search (supplementary)
+│       │   ├── search-issues.ts   # GitHub issues search (supplementary)
+│       │   ├── search-posts.ts    # direct PostEmbedding cache access
+│       │   └── action-hint.ts
+│       └── data/
+│           ├── sample-m365.json        # M365 unified sample data (OneDrive/SharePoint/Email)
+│           ├── sample-docs.json
+│           └── sample-issues.json
 └── types/
     └── index.ts           # Shared TypeScript types
-
-mcp-server/
-├── index.ts               # MCP server entry (Streamable HTTP)
-├── tools/
-│   ├── search-docs.ts     # search_docs tool
-│   ├── search-issues.ts   # search_issues tool
-│   ├── search-posts.ts    # search_posts tool (AI Foundry embeddings)
-│   └── action-hint.ts     # generate_action_hint tool
-└── data/
-    ├── sample-docs.json   # Pre-embedded docs (MVP 하드코딩)
-    └── sample-issues.json # Pre-embedded issues (MVP 하드코딩)
 
 tests/
 └── unit/
@@ -227,14 +275,15 @@ tests/
     └── cosine.test.ts     # Cosine similarity tests
 ```
 
-**Structure Decision**: Next.js App Router 단일 프로젝트 + MCP 서버 사이드카 구조.
-프론트엔드/백엔드가 동일 Next.js 프로젝트 내 공존하며, MCP 서버만 별도 프로세스로 실행.
-이 구조는 100분 타임박스에 최적화된 최소 복잡도를 제공한다.
+**Structure Decision**: Next.js App Router single project, MCP server in-process architecture.
+Front-end/back-end/MCP server all run within the same Next.js process.
+Connected via InMemoryTransport for MCP client-server communication, no separate process/port needed.
+This structure provides minimal complexity optimized for the 100-minute timebox.
 
 ## Complexity Tracking
 
-> 7.2 Observability 원칙의 부분 준수만 이 섹션에서 정당화한다.
+> Only partial compliance with the 7.2 Observability principle is justified in this section.
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| 7.2 Observability (PARTIAL) | 100분 타임박스에서 구조화 로깅 구현 불가 | console.log로 충분한 디버깅 가능, post-MVP에서 pino/winston 도입 예정 |
+| 7.2 Observability (PARTIAL) | Cannot implement structured logging within the 100-minute timebox | console.log provides sufficient debugging, pino/winston planned for post-MVP |
