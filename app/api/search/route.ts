@@ -70,19 +70,30 @@ export async function GET(req: NextRequest) {
     )
     .all(...postIds) as (PostSummary & { tags: string })[];
 
-  // Split into in-bbox and out-of-bbox
+  // Split into in-bbox and out-of-bbox, preserving semantic similarity order
   const inBbox: PostSummary[] = [];
   const outOfBbox: PostSummary[] = [];
 
+  // Build a lookup map from post ID to parsed post data
+  const postById: Record<string, PostSummary> = {};
   allPosts.forEach((p) => {
     const parsed: PostSummary = { ...p, tags: p.tags ? JSON.parse(p.tags) : [] };
+    postById[String(p.id)] = parsed;
+  });
+
+  // Iterate topResults in similarity order and bucket posts by bbox
+  topResults.forEach((result) => {
+    const post = postById[String(result.item.postId)];
+    if (!post) {
+      return;
+    }
     if (
-      p.lat >= swLat && p.lat <= neLat &&
-      p.lng >= swLng && p.lng <= neLng
+      post.lat >= swLat && post.lat <= neLat &&
+      post.lng >= swLng && post.lng <= neLng
     ) {
-      inBbox.push(parsed);
+      inBbox.push(post);
     } else {
-      outOfBbox.push(parsed);
+      outOfBbox.push(post);
     }
   });
 

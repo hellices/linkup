@@ -31,7 +31,7 @@ export default function PostCreateModal({
   const [error, setError] = useState<string | null>(null);
 
   const charCount = text.length;
-  const isOverLimit = charCount > 300;
+  const isOverLimit = charCount > 500;
   const canSave = text.trim().length > 0 && ttl && !isOverLimit && !saving;
 
   const handleSave = useCallback(async () => {
@@ -102,14 +102,14 @@ export default function PostCreateModal({
                 ? "border-pink-300 focus:border-pink-400 bg-pink-50/50"
                 : "border-gray-100 focus:border-purple-300 bg-gray-50/50"
             }`}
-            maxLength={300}
+            maxLength={500}
           />
           <div
             className={`text-xs mt-1.5 text-right font-medium ${
               isOverLimit ? "text-pink-500" : "text-gray-300"
             }`}
           >
-            {charCount}/300
+            {charCount}/500
             {isOverLimit && " — Please shorten a bit 🙏"}
           </div>
         </div>

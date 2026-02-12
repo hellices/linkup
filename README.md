@@ -5,15 +5,21 @@ MVP built in 100 minutes with 3-sentence posts + map-based discovery + MCP recom
 ## Architecture
 
 ```
-Next.js 14 App (:3000)           MCP Server (:3001)
-┌──────────────────────┐         ┌──────────────────┐
-│ Azure Maps + React   │         │ search_docs      │
-│ Auth.js + Entra ID   │  HTTP   │ search_issues    │
-│ SQLite (better-sqlite)├────────┤ search_posts     │
-│ AI Foundry client    │         │ generate_action   │
-│ MCP client           │         │   _hint          │
-└──────────────────────┘         └──────────────────┘
+Next.js 14 App (:3000)
+┌──────────────────────────────────┐
+│ Azure Maps + React               │
+│ Auth.js + Entra ID               │
+│ SQLite (better-sqlite3)          │
+│ AI Foundry client                │
+│ In-Process MCP Server            │
+│ ├─ search_docs                   │
+│ ├─ search_issues                 │
+│ ├─ search_posts                  │
+│ └─ generate_action_hint          │
+└──────────────────────────────────┘
 ```
+
+**Note**: MCP runs in-process using `InMemoryTransport` (no separate server).
 
 ## Key Features
 
@@ -33,10 +39,7 @@ See [specs/001-map-first-mvp/quickstart.md](specs/001-map-first-mvp/quickstart.m
 # Install
 npm install
 
-# Start MCP server (terminal 1)
-npm run mcp
-
-# Start Next.js app (terminal 2)
+# Start Next.js app
 npm run dev
 ```
 

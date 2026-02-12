@@ -11,9 +11,10 @@ Auto-generated from all feature plans. Last updated: 2026-02-11
 ## Project Structure
 
 ```text
-backend/
-frontend/
-tests/
+app/              # Next.js App Router (pages, components, API routes)
+specs/            # Feature specifications and documentation
+docs/             # Additional documentation
+scripts/          # Utility scripts (e.g., seed.ts)
 ```
 
 ## Commands

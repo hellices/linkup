@@ -1,6 +1,6 @@
 // T004: Root layout with Auth provider + Azure Maps CSS
 import type { Metadata } from "next";
-import { SessionProvider } from "next-auth/react";
+import { Providers } from "@/app/providers";
 import { auth } from "@/app/lib/auth";
 import "azure-maps-control/dist/atlas.min.css";
 import "./globals.css";
@@ -26,7 +26,7 @@ export default async function RootLayout({
         />
       </head>
       <body className="h-screen w-screen overflow-hidden">
-        <SessionProvider session={session}>{children}</SessionProvider>
+        <Providers session={session}>{children}</Providers>
       </body>
     </html>
   );

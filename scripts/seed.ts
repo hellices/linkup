@@ -1,5 +1,5 @@
 // Seed script: Insert sample posts into linkup.db
-// Run: npx ts-node scripts/seed.ts
+// Run: npx tsx scripts/seed.ts
 import Database from "better-sqlite3";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";

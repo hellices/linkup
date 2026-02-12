@@ -9,17 +9,12 @@ import type { PostSummary } from "@/app/types";
  * Search posts by embedding the query and comparing against PostEmbedding cache.
  * Direct in-process access — no HTTP callback needed.
  * On failure or empty cache, returns empty array (graceful degrade).
+ * Returns full PostSummary objects for UI display.
  */
 export async function searchPosts(
   query: string,
   excludePostId?: string
-): Promise<Array<{
-  title: string;
-  url: string;
-  description: string;
-  sourceType: "post";
-  status: "available";
-}>> {
+): Promise<PostSummary[]> {
   try {
     const queryVector = await generateEmbedding(query);
     if (!queryVector) {
@@ -44,24 +39,24 @@ export async function searchPosts(
 
     if (scored.length === 0) return [];
 
-    // Fetch post details from DB
+    // Fetch post details from DB with engagement counts
     const db = getDb();
     const postIds = scored.map((s) => s.postId);
     const placeholders = postIds.map(() => "?").join(",");
     const posts = db
       .prepare(
-        `SELECT * FROM posts WHERE id IN (${placeholders}) AND expiresAt > datetime('now')`
+        `SELECT p.*,
+          COALESCE((SELECT COUNT(*) FROM engagements WHERE postId = p.id AND intent = 'interested'), 0) as interestedCount,
+          COALESCE((SELECT COUNT(*) FROM engagements WHERE postId = p.id AND intent = 'join'), 0) as joinCount
+        FROM posts p
+        WHERE p.id IN (${placeholders}) AND expiresAt > datetime('now')`
       )
-      .all(...postIds) as PostSummary[];
+      .all(...postIds) as (PostSummary & { tags: string })[];
 
+    // Parse tags and return as PostSummary[]
     return posts.slice(0, 5).map((p) => ({
-      title: p.text.slice(0, 60) + (p.text.length > 60 ? "…" : ""),
-      url: `/posts/${p.id}`,
-      description: `Post at (${p.lat.toFixed(2)}, ${p.lng.toFixed(2)})${
-        Array.isArray(p.tags) && p.tags.length ? ` — ${p.tags.join(", ")}` : ""
-      }`,
-      sourceType: "post" as const,
-      status: "available" as const,
+      ...p,
+      tags: p.tags ? JSON.parse(p.tags) : [],
     }));
   } catch (err) {
     console.log("[search_posts] Error:", (err as Error).message);

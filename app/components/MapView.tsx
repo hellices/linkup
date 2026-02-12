@@ -34,7 +34,7 @@ export default function MapView({
   const markersRef = useRef<AtlasMarker[]>([]);
   const markerClickedRef = useRef(false);
   const [selectedPost, setSelectedPost] = useState<PostSummary | null>(null);
-  const [popupPosition, setPopupPosition] = useState<{
+  const [, setPopupPosition] = useState<{
     x: number;
     y: number;
   } | null>(null);

@@ -100,7 +100,7 @@ Next.js App (:3000)
 | 1.2 Map-First Interaction | ✅ PASS | Uses Azure Maps Web SDK, map-centric UI |
 | 1.3 Connection Over Storage | ✅ PASS | Interested/Join → connects to next action, provides MCP Action Hint |
 | 2.1 Mandatory TTL | ✅ PASS | TTL required for all posts, excluded from queries upon expiration |
-| 2.2 Optional De-identified Summary | ✅ PASS | Data deleted after expiration in MVP (no summary retention) |
+| 2.2 Optional De-identified Summary | ✅ PASS | TTL enforcement via query-time filtering (physical deletion not in MVP scope) |
 | 3.1 Entra ID Auth Only | ✅ PASS | Uses Auth.js + Entra ID provider |
 | 3.2 Minimum-Privilege | ✅ PASS | Maps: subscription key, Entra: minimum scope |
 | 3.3 Zero Sensitive Data | ✅ PASS | Log masking, no PII storage, FR-019 compliant |

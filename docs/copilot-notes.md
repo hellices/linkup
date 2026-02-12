@@ -12,7 +12,7 @@ Used GitHub Copilot (Claude Opus 4.6) to implement the LinkUp Map-First MVP.
 
 **How Copilot helped**:
 - Gap analysis per checklist item (CHK017–CHK039)
-- Automated补 completion of missing content in spec.md:
+- Automated completion of missing content in spec.md:
   - Demo Script expanded from 5 to 6 steps (added search filtering)
   - Added search→map visual feedback specification to FR-015
   - Added Action Hint placement/style/click behavior specification to FR-016

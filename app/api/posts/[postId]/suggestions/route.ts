@@ -6,9 +6,9 @@ import { getCombinedSuggestions } from "@/app/lib/mcp-client";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ postId: string }> }
+  { params }: { params: { postId: string } }
 ) {
-  const { postId } = await params;
+  const { postId } = params;
 
   const db = getDb();
   const post = db
