@@ -5,6 +5,7 @@ import { auth } from "@/app/lib/auth";
 import {
   validateCoordinates,
   calculateExpiresAt,
+  validateSentences,
 } from "@/app/lib/validation";
 import { v4 as uuidv4 } from "uuid";
 import { addEmbedding } from "@/app/lib/ai-foundry";
@@ -82,10 +83,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Validate text length (max 300 chars)
-  if (text.length > 300) {
+  // Validate text length (max 500 chars)
+  if (text.length > 500) {
     return NextResponse.json(
-      { error: "Please keep your text within 300 characters.", code: "TEXT_TOO_LONG" },
+      { error: "Please keep your text within 500 characters.", code: "TEXT_TOO_LONG" },
+      { status: 422 }
+    );
+  }
+
+  // Validate sentence count (max 3 sentences)
+  const sentenceValidation = validateSentences(text);
+  if (!sentenceValidation.valid) {
+    return NextResponse.json(
+      { error: sentenceValidation.error, code: "TOO_MANY_SENTENCES" },
       { status: 422 }
     );
   }

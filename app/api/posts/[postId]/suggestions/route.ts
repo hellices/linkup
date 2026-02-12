@@ -7,9 +7,9 @@ import { auth } from "@/app/lib/auth";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ postId: string }> }
+  { params }: { params: { postId: string } }
 ) {
-  const { postId } = await params;
+  const { postId } = params;
 
   const db = getDb();
   const post = db
