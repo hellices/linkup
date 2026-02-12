@@ -133,6 +133,7 @@ Why MCP is a "feature", not just a wrapper:
 
 | Tool | Input | Output | AI Usage | Source |
 |------|-------|--------|---------|--------|
+| `search_m365` | query string | McpSuggestion[] (max 10) | Microsoft Graph Search API | OneDrive + SharePoint + Email (실시간) |
 | `search_docs` | query string | McpSuggestion[] (max 3) | embed(query) → cosine | Pre-embedded Azure Docs JSON |
 | `search_issues` | query string | McpSuggestion[] (max 2) | embed(query) → cosine | Pre-embedded GitHub Issues JSON |
 | `search_posts` | query string, excludePostId? | McpSuggestion[] (max 5) | embed(query) → cosine | Direct PostEmbedding cache access |

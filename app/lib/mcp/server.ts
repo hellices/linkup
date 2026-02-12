@@ -14,8 +14,9 @@ import { generateActionHint } from "./tools/action-hint";
 /**
  * Create a new McpServer with all 4 tools registered.
  * Fresh instance per request to avoid transport conflicts.
+ * @param accessToken Optional Microsoft Graph access token for M365 search.
  */
-function createServer(): McpServer {
+function createServer(accessToken?: string): McpServer {
   const server = new McpServer({
     name: "linkup-mcp",
     version: "1.0.0",
@@ -25,10 +26,10 @@ function createServer(): McpServer {
 
   server.tool(
     "search_m365",
-    "Search all M365 internal resources (OneDrive files, SharePoint documents, Outlook emails) in a single call. PRIMARY source — these internal resources are more valuable than web search. Returns results tagged with their sub-source (onedrive/sharepoint/email) for UI grouping.",
+    "Search M365 internal resources (OneDrive files, SharePoint documents, Outlook emails) via Microsoft Graph Search API. PRIMARY source — returns results tagged with sub-source (onedrive/sharepoint/email) for UI grouping.",
     { query: z.string().describe("Search query text") },
     async ({ query }) => {
-      const results = await searchM365(query);
+      const results = await searchM365(query, accessToken);
       return {
         content: [{ type: "text" as const, text: JSON.stringify(results) }],
       };
@@ -105,9 +106,10 @@ function createServer(): McpServer {
 /**
  * Create an in-process MCP client connected to a fresh server via InMemoryTransport.
  * Returns the Client — caller must call client.close() when done.
+ * @param accessToken Optional Microsoft Graph access token for M365 search.
  */
-export async function connectInProcess(): Promise<Client> {
-  const server = createServer();
+export async function connectInProcess(accessToken?: string): Promise<Client> {
+  const server = createServer(accessToken);
   const client = new Client({ name: "linkup-app", version: "1.0.0" });
 
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

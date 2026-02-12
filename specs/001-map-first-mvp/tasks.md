@@ -73,7 +73,7 @@
 - [ ] T014 [US1] Implement POST `/api/posts` route with 3-sentence validation + TTL → expiresAt calculation + lat/lng required + authorId from session in `app/api/posts/route.ts`
 - [ ] T015 [P] [US1] Create PostCreateModal component with text input (3-sentence real-time feedback) + TTL selector (1m/24h/72h/7d) + tags input + Save/Cancel in `app/components/PostCreateModal.tsx`
 - [ ] T016 [US1] Wire map click → capture (lat, lng) → open PostCreateModal with coordinates in `app/components/MapView.tsx`
-- [ ] T017 [P] [US1] Create PostMarker component for rendering individual post markers on map in `app/components/PostMarker.tsx`
+- [ ] T017 [P] [US1] Render post markers inline within MapView component (marker creation logic in `app/components/MapView.tsx`; separate PostMarker component optional)
 - [ ] T018 [US1] Wire post creation → POST /api/posts → add new marker to map immediately (re-fetch or optimistic update) in `app/page.tsx`
 
 **Checkpoint**: Post creation (3 sentences+TTL+coordinates) → marker displayed on map immediately. Exceeds 3 sentences/no TTL/no coordinates → returns 400.
@@ -132,7 +132,7 @@
 
 ### API Integration
 
-- [ ] T032 [US3] Create MCP client wrapper with LLM-driven tool orchestration (connect to in-process McpServer via InMemoryTransport → listTools() → convert to OpenAI function-calling → GPT-4o-mini decides which tools to call → callTool() loop → LLM returns structured CombinedSuggestionsResponse; hardcoded parallel fallback when AI Foundry is unavailable) in `app/lib/mcp-client.ts`
+- [ ] T032 [US3] Create MCP client wrapper with LLM-driven tool orchestration + Multi-Query Expansion (connect to in-process McpServer via InMemoryTransport → listTools() → convert to OpenAI function-calling → GPT-4o-mini generates 2–3 diverse search queries from post text → calls search_m365 multiple times with expanded queries + supplementary sources → deduplicates by URL/title → returns structured CombinedSuggestionsResponse; MAX_TOOL_ROUNDS=5; hardcoded parallel fallback when AI Foundry is unavailable) in `app/lib/mcp-client.ts`
 - [ ] T033 [US3] Implement GET `/api/posts/[postId]/suggestions` route (fetch post → call MCP + AI Foundry → combine docs/issues/posts + actionHint → graceful degrade) in `app/api/posts/[postId]/suggestions/route.ts`
 - [ ] T034 [US3] Implement GET `/api/search` route (query embedding → cosine vs all PostEmbeddings → bbox filter → return SemanticSearchResponse with outOfBounds count) in `app/api/search/route.ts`
 
@@ -155,7 +155,7 @@
 
 ### Implementation for User Story 4
 
-- [ ] T039 [US4] Implement POST `/api/posts/[postId]/engagement` route with idempotent upsert (INSERT OR REPLACE on postId+userId unique) + return updated counts in `app/api/posts/[postId]/engagement/route.ts`
+- [ ] T039 [US4] Implement POST `/api/posts/[postId]/engagement` route with idempotent upsert (INSERT OR REPLACE on postId+userId unique; Interested→Join upgrades existing record’s intent without duplicating count) + return updated counts in `app/api/posts/[postId]/engagement/route.ts`
 - [ ] T040 [US4] Wire Interested/Join buttons in PostPopup → POST engagement → update interestedCount/joinCount display in `app/components/PostPopup.tsx`
 - [ ] T041 [US4] Add auth guard on engagement buttons (unauthenticated → prompt login) in `app/components/PostPopup.tsx`
 
@@ -185,7 +185,12 @@
 - [ ] T044 [P] Create `docs/mcp.md` with MCP server architecture, multi-source value, Docs+Issues integration flow explanation
 - [ ] T045 [P] Create `docs/copilot-notes.md` with GitHub Copilot usage records (minimum 3 examples)
 - [ ] T046 Update `README.md` with AI Foundry semantic search + MCP architecture summary + quickstart reference
-- [ ] T047 Run 2-minute demo rehearsal per `specs/001-map-first-mvp/quickstart.md` Demo Script (8 steps)
+- [ ] T047 Run 2-minute demo rehearsal per `specs/001-map-first-mvp/quickstart.md` Demo Script (8 steps); verify SC-001 (30s login-to-post) and SC-002 (5s MCP results) timing
+
+### Cross-Cutting Quality (Analysis Remediation)
+
+- [ ] T048 [P] Create `sanitizeForLog()` utility in `app/lib/validation.ts` that masks user text/PII before logging; apply in API routes that handle user text (T014, T033, T034) per FR-019
+- [ ] T049 [P] Add startup expired-post cleanup sweep in `app/lib/db.ts` — `DELETE FROM posts WHERE expiresAt <= datetime('now')` on DB init, satisfying Constitution 2.1 automatic deletion requirement
 
 ---
 
@@ -310,7 +315,9 @@ T038: "Wire SearchBar → search → map"
 | T023–T038 | FR-013, FR-014, FR-015, FR-016, FR-017, FR-018 | US3 (M365 primary + web supplementary) |
 | T039–T041 | FR-009, FR-010, FR-011 | US4 |
 | T042–T043 | FR-012 | US5 |
-| T012–T013 | FR-005, FR-019, FR-020 | Shared |
+| T048 | FR-019 | Cross-cutting (log masking) |
+| T049 | FR-012 (Constitution 2.1) | Cross-cutting (expired post cleanup) |
+| T012–T013 | FR-005, FR-020 | Shared |
 
 ---
 
@@ -320,7 +327,7 @@ T038: "Wire SearchBar → search → map"
 - [Story] label maps task to specific user story for traceability
 - Each user story should be independently completable and testable at its checkpoint
 - Commit after each task or logical group
-- Total: 49 tasks across 8 phases (M365 unified tool +2)
+- Total: 51 tasks across 8 phases (M365 unified tool +2, analysis remediation +2)
 - AI Foundry fallback: return hardcoded results if Azure services unavailable (T023, T025b)
 - MCP graceful degrade: on partial failure show only successful sources, on total failure show "No suggestions available" (T033)
 - MCP server's AI Foundry client (T025b):

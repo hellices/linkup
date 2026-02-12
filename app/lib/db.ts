@@ -39,6 +39,17 @@ export function getDb(): Database.Database {
       CREATE INDEX IF NOT EXISTS idx_posts_expires ON posts(expiresAt);
       CREATE INDEX IF NOT EXISTS idx_posts_location ON posts(lat, lng);
     `);
+
+    // Constitution 2.1: Mandatory TTL — "automatic deletion" on expiry.
+    // Startup sweep deletes expired posts so data is not retained permanently.
+    const deleted = _db
+      .prepare(`DELETE FROM posts WHERE expiresAt <= datetime('now')`)
+      .run();
+    if (deleted.changes > 0) {
+      console.log(
+        `[DB] Startup cleanup: deleted ${deleted.changes} expired post(s)`
+      );
+    }
   }
   return _db;
 }

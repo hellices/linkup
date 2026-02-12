@@ -43,27 +43,26 @@ export default function PostPopup({
 
   const timeRemaining = getTimeRemaining(post.expiresAt);
 
-  // Fetch suggestions
+  // Fetch suggestions (AbortController prevents duplicate in-flight requests under React Strict Mode)
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     setSuggestionsLoading(true);
 
-    fetch(`/api/posts/${post.id}/suggestions`)
+    fetch(`/api/posts/${post.id}/suggestions`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!cancelled && data) {
-          setSuggestions(data);
-        }
+        if (data) setSuggestions(data);
       })
-      .catch(() => {
+      .catch((err) => {
+        if ((err as Error).name === "AbortError") return; // expected on cleanup
         // Graceful degrade
       })
       .finally(() => {
-        if (!cancelled) setSuggestionsLoading(false);
+        if (!controller.signal.aborted) setSuggestionsLoading(false);
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [post.id]);
 

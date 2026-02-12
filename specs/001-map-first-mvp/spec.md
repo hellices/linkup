@@ -149,7 +149,7 @@ Display an appropriate error message on login failure.
 **Acceptance Scenarios**:
 
 1. **Given** an unauthenticated user accesses the app, **When** they complete Entra ID login, **Then** they enter the map main screen and user identification information is maintained in the session.
-2. **Given** an unauthenticated user accesses the app, **When** they do not log in, **Then** they can view the map in read-only mode (map browsing + marker display is allowed). When attempting to view post detail popups, create posts, or engage (Interested/Join), they are directed to the login screen.
+2. **Given** an unauthenticated user accesses the app, **When** they do not log in, **Then** they can view the map in read-only mode (map browsing + marker display + post detail popups are allowed). When attempting to create posts or engage (Interested/Join), they are directed to the login screen.
 
 ---
 
@@ -160,7 +160,7 @@ Display an appropriate error message on login failure.
 - **MCP timeout**: When the MCP/AI Foundry server response is slow (e.g., over 5 seconds), show a loading indicator in the recommendation section, and display "No suggestions available" on timeout.
 - **MCP partial failure**: When some sources succeed but others fail (e.g., OneDrive succeeds but SharePoint/Email fail), display only the results from the successful sources and show "unavailable" for the failed sources. M365 sources and web sources are processed independently.
 - **Action Hint generation failure**: If AI Foundry fails to generate an Action Hint, hide the hint area and display only the result list.
-- **Semantic search results and map area mismatch**: Results from AI Foundry outside the current map view should not be displayed as markers, but should be shown as a "N results outside map" label at the bottom of the combined UI, and clicking it should pan the map to that area.
+- **Semantic search results and map area mismatch**: Results from AI Foundry outside the current map view should not be displayed as markers, but should be shown as a "N results outside map" label at the bottom of the combined UI, and clicking it should pan the map to the bounding box that contains all out-of-bounds results.
 - **Semantic search 0 results within viewport**: If search results have 0 matches within the current map viewport, display a "No search results in this area" notice, and if there are results outside the viewport, provide a "N results outside map" indicator.
 - **Duplicate engagement**: When the same user transitions from Interested → Join, the existing Interested should be upgraded to Join, and the count must not increase duplicately.
 - **Post without coordinates**: When attempting to create a post without clicking the map, automatically assign default coordinates (map center) or require coordinate selection.
@@ -183,9 +183,9 @@ Display an appropriate error message on login failure.
 - **FR-011**: The participant count (Interested/Join) must be displayed in the post popup.
 - **FR-012**: Posts with expired TTLs must be excluded from the map and query results. In the MVP, TTL enforcement is sufficient via query-time filtering (`expiresAt > now`); expired posts are excluded from query results but are not physically deleted from the DB (see Non-Goals for physical deletion).
 - **FR-013** (FR7.1): MCP must integrate **M365 internal resource sources (OneDrive, SharePoint, Email) as the primary source**, and combine external data sources (Docs + Issues) as supplementary sources to provide search results. At least one M365 source must return results.
-- **FR-014** (FR7.2): When creating/viewing posts, AI Foundry + MCP must be used to return "highly relevant posts/documents/issues." The app sends the user query and available MCP tool definitions to the LLM, and **the LLM decides which MCP tools to call and with what arguments** (LLM-driven tool orchestration). The app does not hardcode tool selection.
+- **FR-014** (FR7.2): When creating/viewing posts, AI Foundry + MCP must be used to return "highly relevant posts/documents/issues" via LLM-driven tool orchestration with Multi-Query Expansion. See FR-023 for the detailed orchestration pattern.
 - **FR-015** (FR7.3): In map search, AI Foundry semantic search results must be re-filtered to the current map view area and displayed as markers. When search is active, markers matching search results should be highlighted, and markers not matching the results should be dimmed (reduced opacity) for visual distinction. Search result markers must be clearly distinguishable from regular markers through color or size changes.
-- **FR-016** (FR7.4): Based on MCP results, a 1-line "Action Hint (next action suggestion)" must be generated and provided to the user. The Action Hint is placed at the top of the "Suggested via MCP" section in the post popup with an emphasized style (background color or bold), and must suggest a specific next action rather than a general summary (e.g., "Check Step 2 first," "Refer to related issue #42"). The Action Hint must be clickable and navigate to the corresponding resource when clicked.
+- **FR-016** (FR7.4): Based on MCP results, a 1-line "Action Hint (next action suggestion)" must be generated and provided to the user. The Action Hint is placed at the top of the "Suggested via MCP" section in the post popup with an emphasized style (background color or bold), and must suggest a specific next action rather than a general summary (e.g., "Check Step 2 first," "Refer to related issue #42"). In the MVP, the Action Hint is display-only text; clickable navigation to the referenced resource is deferred to post-MVP.
 - **FR-017** (FR7.5): Multiple results must be displayed in a single combined UI grouped by category ("Suggested via MCP" label included). Results must be displayed as sections separated by source category rather than a flat list, making multi-source integration visually clear. **Display order: M365 internal resources (📁 OneDrive → 📋 SharePoint → 📧 Email) → Web resources (📄 Docs → 🐛 Issues) → 📌 Related Posts.** M365 sources are placed at the top as primary, web sources are placed at the bottom as supplementary.
 - **FR-018**: On MCP call failure, it must gracefully degrade with a "No suggestions available" message. On partial failure, only the results from successful sources should be displayed by category, and the failed source category must indicate an "unavailable" status in its section (e.g., OneDrive success + SharePoint failure → OneDrive results displayed normally + "SharePoint unavailable" shown in the SharePoint section). Even when all M365 sources fail, web source (Docs/Issues) results are still displayed.
 - **FR-019**: Post body, PII, and sensitive data must not be logged in plain text.
@@ -196,11 +196,12 @@ Display an appropriate error message on login failure.
   1. The app creates an in-process MCP server and connects via `InMemoryTransport` (same process, no HTTP).
   2. The app discovers available tools via `listTools()` and converts MCP tool schemas to OpenAI function-calling format.
   3. The app sends the user query and tool definitions to GPT-4o-mini.
-  4. The LLM decides which tools to call (may call multiple tools, or choose not to call certain tools based on relevance).
-  5. The app executes the LLM's chosen tool calls via MCP `callTool()` and returns the results.
-  6. The LLM produces a final structured response (categorized results + Action Hint) based on tool outputs.
-  7. This is the standard MCP integration pattern (LLM ↔ tool-use loop), not a hardcoded tool call sequence.
-  8. The MCP server runs in-process (no sidecar) — tools can directly access the app's PostEmbedding cache, AI Foundry client, and DB.
+  4. The LLM performs **Multi-Query Expansion** — generates 2–3 diverse search queries from the post text (original keywords, synonyms/alternative phrasings, broader terms) to maximize recall from keyword-based search APIs.
+  5. The LLM decides which tools to call with each query (may call the same tool multiple times with different queries, or choose not to call certain tools based on relevance).
+  6. The app executes the LLM's chosen tool calls via MCP `callTool()` and returns the results.
+  7. The LLM deduplicates results (by URL/title), then produces a final structured response (categorized results + Action Hint) based on tool outputs.
+  8. This is the standard MCP integration pattern (LLM ↔ tool-use loop), not a hardcoded tool call sequence.
+  9. The MCP server runs in-process (no sidecar) — tools can directly access the app's PostEmbedding cache, AI Foundry client, and DB.
 
 ### Key Entities
 
@@ -230,7 +231,7 @@ Display an appropriate error message on login failure.
 - The MCP server integrates **M365 internal resource sources (OneDrive, SharePoint, Email) as primary**, combines external data sources (Docs + Issues) as supplementary, and performs semantic search and Action Hint generation through AI Foundry.
 - AI Foundry integration is done via the Azure AI Foundry SDK or REST API; model selection is determined in the plan phase.
 - Popup engagement buttons are limited to 2 (Interested/Join); additional actions (chat/meeting) will be addressed in subsequent specs.
-- The scope of read-only mode (unauthenticated users) allows map browsing + marker display, and accessing post detail popups requires authentication by default.
+- The scope of read-only mode (unauthenticated users) allows map browsing + marker display + post detail popup viewing. Write actions (post creation, engagement) require authentication.
 - MVP authentication acceptance criteria: ① Entra ID login success, ② session persistence — session is maintained even after refreshing post-login, ③ write guard — post creation/engagement is blocked for unauthenticated users. If these 3 work, the MVP authentication passes.
 
 ## UX Guidelines (Zenly-light)

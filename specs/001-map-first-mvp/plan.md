@@ -35,6 +35,7 @@ The entire flow must be demonstrable in a 2-minute demo.
 
 - **Increase AI Foundry implementation weight** → reduce UI/auxiliary features instead
 - **MCP queries: M365 internal resources (OneDrive/SharePoint/Email) as primary, web resources (Docs/Issues) as supplementary**
+- **Multi-Query Expansion**: LLM generates 2–3 diverse search queries from post text before calling search tools, compensating for keyword-based Graph Search API limitations
 - **Action Hint generation**: MCP server directly calls GPT-4o-mini to generate. Falls back to template when AI Foundry is unavailable.
 - **Map-search re-filtering uses semantic results + bbox filtering**
 - Score/ranking/dashboard features are excluded from this Plan
@@ -98,8 +99,8 @@ Next.js App (:3000)
 |-----------|--------|-------|
 | 1.1 Lightweight by Design | ✅ PASS | 3-sentence limit maintained, minimal UI, can ask a question within 10 seconds |
 | 1.2 Map-First Interaction | ✅ PASS | Uses Azure Maps Web SDK, map-centric UI |
-| 1.3 Connection Over Storage | ✅ PASS | Interested/Join → connects to next action, provides MCP Action Hint |
-| 2.1 Mandatory TTL | ✅ PASS | TTL required for all posts, excluded from queries upon expiration |
+| 1.3 Connection Over Storage | ⚠️ PARTIAL | Interested/Join → signals participation intent. Post-MVP: Chat/Meeting actions after Join (8.3 MVP First justifies deferral) |
+| 2.1 Mandatory TTL | ✅ PASS | TTL required for all posts; expired posts deleted on startup (db.ts sweep) + excluded from queries at runtime |
 | 2.2 Optional De-identified Summary | ✅ PASS | Data deleted after expiration in MVP (no summary retention) |
 | 3.1 Entra ID Auth Only | ✅ PASS | Uses Auth.js + Entra ID provider |
 | 3.2 Minimum-Privilege | ✅ PASS | Maps: subscription key, Entra: minimum scope |
@@ -107,16 +108,16 @@ Next.js App (:3000)
 | 4.1 MCP as Core Capability | ✅ PASS | Resource recommendation via MCP server is a required path |
 | 4.2 Multi-source Knowledge | ✅ PASS | M365 internal resources (OneDrive/SharePoint/Email) + web resources (Docs/Issues) + Posts unified search |
 | 4.3 Transparency | ✅ PASS | "Suggested via MCP" label displayed in UI |
-| 5.1 Intent-based Participation | ✅ PASS | Interested/Join 2 stages (Available is post-MVP) |
+| 5.1 Intent-based Participation | ⚠️ PARTIAL | Interested/Join 2 of 3 stages implemented; Available deferred per 8.3 MVP First (100-min timebox) |
 | 5.2 No Heavy Social Graph | ✅ PASS | No friends/follow functionality |
 | 6.x Rewards & Reputation | ⏭ SKIP | Outside MVP scope (Score/Dashboard in Cut List) |
 | 7.1 Modular Architecture | ✅ PASS | UI/API/DB/MCP/AI Foundry layer separation |
-| 7.2 Observability | ⚠️ PARTIAL | MVP at console.log level, structured logging is post-MVP |
+| 7.2 Observability | ⚠️ PARTIAL | MVP uses console.log; structured logging (pino/winston) is post-MVP. Justified by 8.3 MVP First (100-min timebox). |
 | 8.1 Spec-Driven Flow | ✅ PASS | Follows spec → plan → tasks → implement order |
 | 8.3 MVP First | ✅ PASS | 100-minute timebox, 2-minute demo priority |
 | 9.x Non-Negotiable | ✅ PASS | No GPS tracking/ads/permanent bulletin boards/sensitive data |
 
-**GATE RESULT: ✅ PASS** — No violations. 7.2 Observability is intentionally minimized within MVP scope (justification: 100-minute timebox).
+**GATE RESULT: ⚠️ CONDITIONAL PASS** — Two PARTIAL items (1.3, 5.1) justified by 8.3 MVP First; 7.2 Observability intentionally minimized within MVP scope (100-minute timebox). No blocking violations.
 
 ## Milestones & Timeline
 
@@ -156,13 +157,14 @@ Next.js App (:3000)
 
 ### M5 (75–88m): MCP Multi-Source Integration (M365 Primary + Web Supplementary)
 - Integrate MCP server as an internal app module (`app/lib/mcp/server.ts`), connect via `InMemoryTransport`
-- **LLM-driven MCP tool orchestration** (FR-023):
+- **LLM-driven MCP tool orchestration with Multi-Query Expansion** (FR-023):
   1. `mcp-client.ts` connects to in-process McpServer via `InMemoryTransport` → discovers tools via `listTools()`
   2. Converts MCP tool schemas to OpenAI function-calling format
   3. Sends user query + tool definitions to GPT-4o-mini
-  4. LLM decides which tools to call (0 or more)
-  5. Executes via MCP `callTool()` → passes results back to LLM
-  6. LLM generates final response (categorized results + Action Hint)
+  4. LLM performs **Multi-Query Expansion**: analyzes the post text and generates 2–3 diverse search queries (original keywords + synonyms/alternative terms + broader conceptual terms) to compensate for keyword-based Graph Search API limitations
+  5. LLM calls search_m365 **multiple times** with each expanded query, plus supplementary sources
+  6. Executes via MCP `callTool()` → passes results back to LLM
+  7. LLM **deduplicates** results by URL/title and generates final response (categorized results + Action Hint)
 - Available MCP tools (directly accessible within the app):
   - **PRIMARY (M365 internal resources)**:
     - `search_m365`: query → M365 unified search (OneDrive/SharePoint/Email) → top 1–5
@@ -257,7 +259,7 @@ app/
 │   └── mcp/               # MCP server module (in-process)
 │       ├── server.ts      # McpServer singleton + tool registration
 │       ├── tools/
-│       ├── search-m365.ts   # M365 unified search (OneDrive/SharePoint/Email) (PRIMARY)
+│       │   ├── search-m365.ts   # M365 unified search (OneDrive/SharePoint/Email) (PRIMARY)
 │       │   ├── search-docs.ts     # Web docs search (supplementary)
 │       │   ├── search-issues.ts   # GitHub issues search (supplementary)
 │       │   ├── search-posts.ts    # direct PostEmbedding cache access

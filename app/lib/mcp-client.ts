@@ -8,7 +8,7 @@ import { getOrchestrationClient, getChatDeploymentName } from "@/app/lib/ai-foun
 import type { CombinedSuggestionsResponse, McpSuggestion, PostSummary } from "@/app/types";
 import type OpenAI from "openai";
 
-const MAX_TOOL_ROUNDS = 3; // prevent infinite loops
+const MAX_TOOL_ROUNDS = 5; // allow query-expansion + search + action-hint rounds
 
 /**
  * Convert MCP tool schemas (from listTools) to OpenAI function-calling format.
@@ -45,10 +45,21 @@ const ORCHESTRATION_SYSTEM_PROMPT = `You are a helpful assistant for LinkUp, a l
 Given a user's post, use the available MCP tools to find relevant resources and generate suggestions.
 
 Strategy:
-1. **FIRST search M365 internal sources** (search_m365 tool) — these are the PRIMARY sources and most valuable to the user (OneDrive files, SharePoint docs, Outlook emails in one call).
-2. Then search supplementary web sources (docs, issues) and similar posts.
-3. Based on all search results, generate an action hint suggesting the next step.
-4. Return a final structured JSON response.
+1. **Query Expansion** — Before searching, analyze the post text and generate 2-3 diverse search queries:
+   - The original keywords from the post
+   - Synonyms, related technical terms, or alternative phrasings (e.g., "배포 파이프라인" → also search "CI/CD", "deployment pipeline")
+   - Broader conceptual terms that related documents might use
+   This is critical because the Graph Search API uses keyword-based matching, so documents titled differently from the question will be missed with a single query.
+
+2. **Search M365 with multiple queries** — Call search_m365 MULTIPLE TIMES with each expanded query. This searches OneDrive files, SharePoint documents, and Outlook emails. These are the PRIMARY sources.
+
+3. **Search supplementary sources** — Search docs, issues, and similar posts (can use the original post text or expanded queries as appropriate).
+
+4. **Deduplicate** — When combining results from multiple search calls, remove duplicates (same URL or title). Keep the version with the better description.
+
+5. **Generate action hint** — Based on all search results, generate an action hint suggesting the next step.
+
+6. **Return final JSON response.**
 
 IMPORTANT: You MUST return the final answer as a JSON object with this exact schema:
 {
@@ -289,13 +300,14 @@ async function fallbackDirectCalls(
  */
 export async function getCombinedSuggestions(
   postText: string,
-  postId: string
+  postId: string,
+  accessToken?: string
 ): Promise<CombinedSuggestionsResponse> {
   let client: Client | null = null;
 
   try {
     console.log("[MCP Client] Connecting to in-process MCP server...");
-    client = await connectInProcess();
+    client = await connectInProcess(accessToken);
     console.log("[MCP Client] Connected via InMemoryTransport. Attempting LLM-driven orchestration...");
 
     // Try LLM-driven orchestration first

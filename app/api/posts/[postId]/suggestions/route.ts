@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/app/lib/db";
 import { getCombinedSuggestions } from "@/app/lib/mcp-client";
+import { auth } from "@/app/lib/auth";
 
 export async function GET(
   _req: NextRequest,
@@ -25,7 +26,9 @@ export async function GET(
   }
 
   try {
-    const suggestions = await getCombinedSuggestions(post.text, postId);
+    const session = await auth();
+    const accessToken = session?.accessToken;
+    const suggestions = await getCombinedSuggestions(post.text, postId, accessToken);
     return NextResponse.json(suggestions);
   } catch {
     // Full failure — graceful degrade

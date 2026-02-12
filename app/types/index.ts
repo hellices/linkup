@@ -25,13 +25,19 @@ export interface Engagement {
   createdAt: string;
 }
 
+/** M365 sub-source identifier for UI icon/grouping */
+export type M365Source =
+  | "onedrive"
+  | "sharepoint"
+  | "email";
+
 export interface McpSuggestion {
   title: string;
   url: string;
   description: string;
   sourceType: "m365" | "doc" | "issue" | "post";
   /** M365 sub-source for UI icon/grouping (only present when sourceType === "m365") */
-  source?: "onedrive" | "sharepoint" | "email";
+  source?: M365Source;
   status: "available" | "unavailable";
 }
 
