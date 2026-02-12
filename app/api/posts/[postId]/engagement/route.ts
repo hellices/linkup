@@ -5,7 +5,7 @@ import { auth } from "@/app/lib/auth";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ postId: string }> }
+  { params }: { params: { postId: string } }
 ) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -15,7 +15,7 @@ export async function POST(
     );
   }
 
-  const { postId } = await params;
+  const { postId } = params;
 
   let body: Record<string, unknown>;
   try {
