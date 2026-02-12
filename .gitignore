@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Build
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+
+# Debug / Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Speckit
+.specify/
+
+# Misc
+coverage/
+*.tsbuildinfo
