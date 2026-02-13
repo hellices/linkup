@@ -14,6 +14,26 @@ type AtlasMarker = any;
 // NOTE: Geolocation is deferred to component mount (not module load)
 // to avoid unexpected permission prompts during Next.js route prefetch.
 
+/** Escape HTML special characters to prevent XSS in HtmlMarker content */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** T001: Truncate text to ~maxLen characters at a word boundary, appending "…" if needed. */
+function truncateSnippet(text: string, maxLen = 40): string {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  if (cleaned.length <= maxLen) return cleaned;
+  const cut = cleaned.lastIndexOf(" ", maxLen);
+  // If no space found (single very long word), hard-cut at maxLen
+  const end = cut > 0 ? cut : maxLen;
+  return cleaned.slice(0, end) + "…";
+}
+
 /** T010: Build speech-bubble HtmlMarker HTML with CSS border-trick tail */
 function buildSpeechBubbleHtml(
   emoji: string,
@@ -22,6 +42,7 @@ function buildSpeechBubbleHtml(
   ringColor: string,
   pinSize: number,
   opacity: number,
+  snippetText: string = "",
 ): string {
   const ringSize = pinSize + 12;
   const fontSize = Math.round(pinSize * 0.45);
@@ -29,11 +50,14 @@ function buildSpeechBubbleHtml(
     + `<div style="position:absolute;top:0;width:${ringSize}px;height:${ringSize}px;border-radius:50%;background:${ringColor};animation:pulse-ring 2s ease-out infinite"></div>`
     + `<div style="min-width:${pinSize}px;height:${pinSize}px;border-radius:12px;background:linear-gradient(135deg,${bgColor},${bgColor}dd);border:3px solid white;box-shadow:0 3px 12px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;position:relative;z-index:1">${emoji}</div>`
     + `<div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid ${tailColor};margin-top:-3px;position:relative;z-index:1"></div>`
+    + (snippetText
+      ? `<div style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#374151;text-align:center;line-height:1.2;margin-top:2px;pointer-events:none">${escapeHtml(snippetText)}</div>`
+      : '')
     + `</div>`;
 }
 
 /** T018: Build cluster marker HTML with numeric badge */
-function buildClusterHtml(count: number, isHighlighted: boolean, isDimmed: boolean): string {
+function buildClusterHtml(count: number, isHighlighted: boolean, isDimmed: boolean, snippetText: string = "", moreCount: number = 0): string {
   const size = count <= 5 ? 44 : count <= 20 ? 52 : 60;
   let bg = "linear-gradient(135deg, #6366f1, #8b5cf6)";
   let opacity = 1;
@@ -43,8 +67,14 @@ function buildClusterHtml(count: number, isHighlighted: boolean, isDimmed: boole
   } else if (isHighlighted) {
     bg = "linear-gradient(135deg, #fb923c, #f97316)";
   }
-  return `<div style="cursor:pointer;opacity:${opacity};display:flex;align-items:center;justify-content:center">`
+  return `<div style="cursor:pointer;opacity:${opacity};display:flex;align-items:center;justify-content:center;flex-direction:column">`
     + `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};border:3px solid white;box-shadow:0 3px 12px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:white">${count}</div>`
+    + (snippetText && !isDimmed
+      ? `<div style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#374151;text-align:center;line-height:1.2;margin-top:4px">${escapeHtml(snippetText)}</div>`
+        + (moreCount > 0
+          ? `<div style="font-size:10px;color:#9ca3af;text-align:center;font-style:italic;margin-top:1px">+${moreCount} more</div>`
+          : '')
+      : '')
     + `</div>`;
 }
 
@@ -132,6 +162,61 @@ function computeClusters(
   }
 
   return groups;
+}
+
+/** T006: Bounding rectangle for snippet occlusion detection */
+interface SnippetRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** T006: Check if two rectangles overlap */
+function rectsOverlap(a: SnippetRect, b: SnippetRect): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+/** T007: Compute which solo pins should show their snippets (greedy, newest-first) */
+function computeSnippetVisibility(
+  soloPins: { post: PostSummary; px: number; py: number }[],
+  clusterRects: SnippetRect[],
+): Set<string> {
+  // Sort newest-first
+  const sorted = [...soloPins].sort(
+    (a, b) => new Date(b.post.createdAt).getTime() - new Date(a.post.createdAt).getTime()
+  );
+
+  const occupied: SnippetRect[] = [...clusterRects];
+
+  // Add all pin bubble rects (always visible)
+  for (const pin of sorted) {
+    occupied.push({
+      left: pin.px - 24,
+      top: pin.py - 36,
+      right: pin.px + 24,
+      bottom: pin.py + 8,
+    });
+  }
+
+  const visible = new Set<string>();
+
+  for (const pin of sorted) {
+    const snippetRect: SnippetRect = {
+      left: pin.px - 60,
+      top: pin.py + 22,
+      right: pin.px + 60,
+      bottom: pin.py + 40,
+    };
+
+    const hasCollision = occupied.some((r) => rectsOverlap(snippetRect, r));
+    if (!hasCollision) {
+      visible.add(pin.post.id);
+      occupied.push(snippetRect);
+    }
+  }
+
+  return visible;
 }
 
 interface MapViewProps {
@@ -329,6 +414,43 @@ export default function MapView({
     // T016: Compute clusters from pixel proximity (radius=50px)
     const groups = computeClusters(currentPosts, map, 50);
 
+    // T008: Compute snippet occlusion visibility for solo pins
+    const soloPinData: { post: PostSummary; px: number; py: number }[] = [];
+    const clusterRects: SnippetRect[] = [];
+
+    for (const group of groups) {
+      if (group.posts.length === 1) {
+        const post = group.posts[0];
+        const isDimmed = currentSearch !== null && !currentSearch.has(post.id);
+        // T009: Dimmed pins are excluded from occlusion (they don't occupy snippet space)
+        if (!isDimmed) {
+          try {
+            const px = map.positionsToPixels([[post.lng, post.lat]]);
+            if (px && px[0]) {
+              soloPinData.push({ post, px: px[0][0], py: px[0][1] });
+            }
+          } catch { /* skip if pixel conversion fails */ }
+        }
+      } else {
+        // Estimate cluster marker bounding box for occlusion
+        try {
+          const px = map.positionsToPixels([group.center]);
+          if (px && px[0]) {
+            const size = group.posts.length <= 5 ? 44 : group.posts.length <= 20 ? 52 : 60;
+            const half = size / 2;
+            clusterRects.push({
+              left: px[0][0] - half,
+              top: px[0][1] - half,
+              right: px[0][0] + half,
+              bottom: px[0][1] + half,
+            });
+          }
+        } catch { /* skip */ }
+      }
+    }
+
+    const visibleSnippets = computeSnippetVisibility(soloPinData, clusterRects);
+
     groups.forEach((group) => {
       if (group.posts.length === 1) {
         // Single post → speech-bubble marker
@@ -358,7 +480,9 @@ export default function MapView({
           ringColor = "rgba(251,146,60,0.3)";
         }
 
-        const htmlContent = buildSpeechBubbleHtml(emoji, bgColor, tailColor, ringColor, pinSize, opacity);
+        // T003+T008+T009: Solo-pin snippet with occlusion and dimming
+        const snippetText = isDimmed ? "" : (visibleSnippets.has(post.id) ? truncateSnippet(post.text) : "");
+        const htmlContent = buildSpeechBubbleHtml(emoji, bgColor, tailColor, ringColor, pinSize, opacity, snippetText);
 
         const marker = new atlas.HtmlMarker({
           position: [post.lng, post.lat],
@@ -389,7 +513,14 @@ export default function MapView({
         const isHighlighted = currentSearch !== null && anyMatch;
         const isDimmed = allMiss;
 
-        const htmlContent = buildClusterHtml(clusterMembers.length, isHighlighted, isDimmed);
+        // T005: Sort cluster members newest-first and derive snippet
+        const sorted = [...clusterMembers].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        const clusterSnippet = isDimmed ? "" : truncateSnippet(sorted[0].text);
+        const moreCount = sorted.length - 1;
+
+        const htmlContent = buildClusterHtml(clusterMembers.length, isHighlighted, isDimmed, clusterSnippet, moreCount);
 
         const marker = new atlas.HtmlMarker({
           position: group.center,
@@ -432,6 +563,14 @@ export default function MapView({
   useEffect(() => {
     renderMarkers();
   }, [posts, searchResultPostIds, renderMarkers]);
+
+  // Auto-close popup if the selected post was removed (e.g., expired via client-side TTL cleanup)
+  useEffect(() => {
+    if (selectedPost && !posts.some(p => p.id === selectedPost.id)) {
+      setSelectedPost(null);
+      setPopupPosition(null);
+    }
+  }, [posts, selectedPost]);
 
   const handleClosePopup = useCallback(() => {
     setSelectedPost(null);

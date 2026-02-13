@@ -42,7 +42,24 @@ export default function PostPopup({
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [engagementLoading, setEngagementLoading] = useState(false);
 
-  const timeRemaining = getTimeRemaining(post.expiresAt);
+  const [timeRemaining, setTimeRemaining] = useState(() =>
+    getTimeRemaining(post.expiresAt)
+  );
+  const isExpired = timeRemaining === "Expired";
+
+  // Live countdown: update remaining time every 10s and auto-close when expired
+  useEffect(() => {
+    const tick = () => {
+      const remaining = getTimeRemaining(post.expiresAt);
+      setTimeRemaining(remaining);
+      if (remaining === "Expired") {
+        // Auto-close popup after a brief delay so the user sees "Expired"
+        setTimeout(() => onClose(), 2000);
+      }
+    };
+    const interval = setInterval(tick, 10_000);
+    return () => clearInterval(interval);
+  }, [post.expiresAt, onClose]);
 
   // Fetch suggestions (AbortController prevents duplicate in-flight requests under React Strict Mode)
   useEffect(() => {
@@ -98,8 +115,14 @@ export default function PostPopup({
     <div className="h-full bg-white/95 backdrop-blur-xl shadow-2xl overflow-y-auto rounded-l-3xl">
       {/* Header */}
       <div className="sticky top-0 bg-white/90 backdrop-blur-xl px-5 py-4 flex items-center justify-between z-10 rounded-tl-3xl">
-        <div className="text-xs font-semibold text-purple-400 bg-purple-50 px-3 py-1 rounded-full">
-          ⏰ {timeRemaining}
+        <div
+          className={`text-xs font-semibold px-3 py-1 rounded-full ${
+            isExpired
+              ? "text-red-500 bg-red-50"
+              : "text-purple-400 bg-purple-50"
+          }`}
+        >
+          {isExpired ? "🚫 Expired" : `⏰ ${timeRemaining}`}
         </div>
         <button
           onClick={onClose}
@@ -166,7 +189,7 @@ export default function PostPopup({
             <div className="flex gap-2">
               <button
                 onClick={() => handleEngagement("interested")}
-                disabled={engagementLoading || !session}
+                disabled={engagementLoading || !session || isExpired}
                 className="flex-1 py-3 rounded-2xl border-2 border-gray-100 text-sm text-gray-500 font-semibold hover:bg-gray-50 disabled:opacity-40 flex items-center justify-center gap-1.5 transition-all active:scale-95"
               >
                 👀 Interested
@@ -174,7 +197,7 @@ export default function PostPopup({
               </button>
               <button
                 onClick={() => handleEngagement("join")}
-                disabled={engagementLoading || !session}
+                disabled={engagementLoading || !session || isExpired}
                 className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-500 text-white text-sm font-bold hover:from-pink-500 hover:to-purple-600 disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-lg shadow-pink-200/40 transition-all active:scale-95"
               >
                 🤝 Join
