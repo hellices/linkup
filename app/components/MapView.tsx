@@ -11,24 +11,8 @@ import ClusterListPanel from "./ClusterListPanel";
 type AtlasMap = any;
 type AtlasMarker = any;
 
-// Start geolocation request at module load time (before React mounts)
-// so the position is likely ready by the time the map initializes.
-const geoPromise: Promise<{ lng: number; lat: number } | null> =
-  typeof navigator !== "undefined" && navigator.geolocation
-    ? new Promise((resolve) => {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            resolve({ lng: pos.coords.longitude, lat: pos.coords.latitude });
-          },
-          () => {
-            // Resolve with null only on actual error (e.g., denied permission),
-            // not on an arbitrary short timeout while the permission prompt is open.
-            resolve(null);
-          },
-          { enableHighAccuracy: false, maximumAge: 60000 }
-        );
-      })
-    : Promise.resolve(null);
+// NOTE: Geolocation is deferred to component mount (not module load)
+// to avoid unexpected permission prompts during Next.js route prefetch.
 
 /** T010: Build speech-bubble HtmlMarker HTML with CSS border-trick tail */
 function buildSpeechBubbleHtml(
@@ -208,13 +192,9 @@ export default function MapView({
       userLocationMarkerRef.current = userMarker;
     };
 
-    // Wait for both geolocation (cached module-level promise) and atlas SDK,
-    // then create the map centred on the user's position from the start.
+    // Initialize map immediately with fallback center, then recenter
+    // + place pin once geolocation resolves (avoids blocking on permission prompt).
     const initMap = async () => {
-      // Resolve geolocation (already started at module load — usually instant)
-      const coords = await geoPromise;
-      if (coords) userCoordsRef.current = coords;
-
       // Wait for Azure Maps SDK to load, but don't poll forever.
       const atlas = await new Promise<any | null>((resolve) => {
         const maxWaitMs = 10000; // 10s cap to avoid unbounded polling
@@ -243,14 +223,10 @@ export default function MapView({
       if (!atlas) return;
       if (!mapRef.current) return;
 
-      const initCenter = coords
-        ? [coords.lng, coords.lat]
-        : [-122.1215, 47.6740]; // Fallback: Redmond, WA
-      const initZoom = coords ? 14 : 12;
-
+      // Start with fallback center; recenter once geolocation arrives.
       const map = new atlas.Map(mapRef.current!, {
-        center: initCenter,
-        zoom: initZoom,
+        center: [-122.1215, 47.6740], // Fallback: Redmond, WA
+        zoom: 12,
         language: "en-US",
         authOptions: {
           authType: atlas.AuthenticationType.subscriptionKey,
@@ -258,11 +234,27 @@ export default function MapView({
         },
       });
 
+      // Request geolocation at component mount (deferred from module load)
+      // and recenter/pin when coords arrive — doesn't block map rendering.
+      if (typeof navigator !== "undefined" && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const coords = { lng: pos.coords.longitude, lat: pos.coords.latitude };
+            userCoordsRef.current = coords;
+            map.setCamera({
+              center: [coords.lng, coords.lat],
+              zoom: 14,
+              type: "ease",
+              duration: 1000,
+            });
+            placeUserPin(map, coords.lng, coords.lat);
+          },
+          () => { /* Permission denied or error — keep fallback center */ },
+          { enableHighAccuracy: false, maximumAge: 60000 }
+        );
+      }
+
       map.events.add("ready", () => {
-        // Place user location pin
-        if (coords) {
-          placeUserPin(map, coords.lng, coords.lat);
-        }
 
         // Map click → create post (only if not clicking a marker)
         map.events.add("click", (e: any) => {
@@ -418,18 +410,11 @@ export default function MapView({
       }
     });
 
-    // Re-add user location pin only if it was removed (e.g. by marker clear above)
+    // Ensure user location pin exists if we have coordinates.
+    // The user marker is managed separately from post markers and is not
+    // removed by the loop above, so just re-add it when it's missing.
     const uc = userCoordsRef.current;
-    if (uc && userLocationMarkerRef.current) {
-      const existing = map.markers.getMarkers?.();
-      const stillOnMap = existing
-        ? existing.includes(userLocationMarkerRef.current)
-        : false;
-      if (!stillOnMap) {
-        map.markers.add(userLocationMarkerRef.current);
-      }
-    } else if (uc) {
-      // First render after coords arrived but before placeUserPin ran
+    if (uc && !userLocationMarkerRef.current) {
       const userMarker = new atlas.HtmlMarker({
         position: [uc.lng, uc.lat],
         htmlContent: buildUserPinHtml(),
@@ -437,6 +422,9 @@ export default function MapView({
       });
       map.markers.add(userMarker);
       userLocationMarkerRef.current = userMarker;
+    } else if (uc && userLocationMarkerRef.current) {
+      // Re-add if it was removed (e.g. by map internals)
+      try { map.markers.add(userLocationMarkerRef.current); } catch { /* already on map */ }
     }
   }, []);
 
