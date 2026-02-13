@@ -4,7 +4,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import type { PostSummary, CombinedSuggestionsResponse } from "@/app/types";
+import type { PostSummary, CombinedSuggestionsResponse, PostCategory } from "@/app/types";
+import { CATEGORIES, DEFAULT_CATEGORY } from "@/app/lib/categories";
 import SuggestionsPanel from "./SuggestionsPanel";
 
 interface PostPopupProps {
@@ -121,6 +122,19 @@ export default function PostPopup({
             </div>
           </div>
         </div>
+
+        {/* T014+T015: Category badge — defaults to "discussion" for legacy posts */}
+        {(() => {
+          const cat = CATEGORIES[((post.category as PostCategory) ?? DEFAULT_CATEGORY)];
+          return (
+            <div
+              className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold"
+              style={{ backgroundColor: cat.color + "22", color: cat.color }}
+            >
+              {cat.emoji} {cat.label}
+            </div>
+          );
+        })()}
 
         {/* Post text */}
         <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap bg-gray-50/80 rounded-2xl p-4">

@@ -1,5 +1,7 @@
 // T003: Shared TypeScript types per data-model.md
 
+export type PostCategory = "question" | "discussion" | "share" | "help" | "meetup";
+
 export interface Post {
   id: string;
   authorId: string;
@@ -9,6 +11,7 @@ export interface Post {
   lat: number;
   lng: number;
   mode: "online" | "offline" | "both";
+  category: PostCategory;
   createdAt: string;
   expiresAt: string;
 }
@@ -70,4 +73,5 @@ export interface CreatePostRequest {
   tags?: string[];
   ttl: "1m" | "24h" | "72h" | "7d";
   mode?: "online" | "offline" | "both";
+  category?: PostCategory;
 }

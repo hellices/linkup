@@ -1,0 +1,181 @@
+openapi: 3.1.0
+info:
+  title: LinkUp API — Pin Category Icons & Clustering Changes
+  version: 0.3.0
+  description: >
+    Contract changes for feature 003-pin-category-icons.
+    Only modified/new schemas are listed here; all unchanged endpoints
+    and schemas remain as defined in specs/001-map-first-mvp/contracts/openapi.yaml.
+
+# ============================================================
+# CHANGED SCHEMAS
+# ============================================================
+
+components:
+  schemas:
+
+    # ---------- NEW: PostCategory enum ----------
+    PostCategory:
+      type: string
+      enum: [question, discussion, share, help, meetup]
+      description: >
+        Collaboration type for a post. Determines pin emoji, color,
+        and display label on the map.
+      default: discussion
+
+    # ---------- MODIFIED: CreatePostRequest ----------
+    CreatePostRequest:
+      type: object
+      required: [text, lat, lng, ttl]
+      properties:
+        text:
+          type: string
+          maxLength: 500
+          description: Post body (3 sentences or fewer)
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        tags:
+          type: array
+          items: { type: string, maxLength: 20 }
+          maxItems: 5
+        ttl:
+          type: string
+          enum: ["1m", "24h", "72h", "7d"]
+          description: TTL option (1m is for demo)
+        mode:
+          type: string
+          enum: [online, offline, both]
+          default: both
+        category:                           # NEW FIELD
+          $ref: "#/components/schemas/PostCategory"
+          description: >
+            Post category. Optional — defaults to "discussion" if omitted (FR-004).
+
+    # ---------- MODIFIED: Post ----------
+    Post:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        authorId: { type: string }
+        authorName: { type: string }
+        text: { type: string }
+        tags: { type: array, items: { type: string } }
+        lat: { type: number }
+        lng: { type: number }
+        mode: { type: string, enum: [online, offline, both] }
+        category:                           # NEW FIELD
+          $ref: "#/components/schemas/PostCategory"
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+
+    # ---------- MODIFIED: PostSummary ----------
+    PostSummary:
+      allOf:
+        - { $ref: "#/components/schemas/Post" }
+        - type: object
+          properties:
+            interestedCount: { type: integer }
+            joinCount: { type: integer }
+
+# ============================================================
+# CHANGED PATHS
+# ============================================================
+
+paths:
+  /posts:
+    post:
+      operationId: createPost
+      summary: Create a new post (with optional category)
+      description: >
+        An authenticated user creates a post with an optional category field.
+        If category is omitted, "discussion" is applied as the default.
+        All other behavior remains unchanged.
+      security:
+        - entraId: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePostRequest" }
+            examples:
+              withCategory:
+                summary: Post with explicit category
+                value:
+                  text: "Anyone know how to configure AKS node pools?"
+                  lat: 47.674
+                  lng: -122.1215
+                  ttl: "24h"
+                  category: "question"
+              withoutCategory:
+                summary: Post with default category
+                value:
+                  text: "Check out this new Azure Functions feature!"
+                  lat: 47.674
+                  lng: -122.1215
+                  ttl: "72h"
+      responses:
+        "201":
+          description: Post created successfully (includes category)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PostSummary" }
+        "400":
+          description: >
+            Invalid request — includes invalid category values.
+            Valid categories: question, discussion, share, help, meetup.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: Exceeds 3-sentence limit or invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+    get:
+      operationId: listPosts
+      summary: List active posts within map view (response now includes category)
+      description: >
+        Returns posts that have not exceeded their TTL, based on bounding box.
+        Each post in the response now includes the `category` field.
+        Existing posts without a category return "discussion" as the default.
+      responses:
+        "200":
+          description: List of active posts (with category)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posts:
+                    type: array
+                    items: { $ref: "#/components/schemas/PostSummary" }
+
+  # No changes to /posts/{postId}/engagement or /posts/{postId}/suggestions
+  # No changes to /search — search results already return PostSummary which now includes category
+
+# ============================================================
+# VALIDATION RULES SUMMARY
+# ============================================================
+# 1. category field is optional in CreatePostRequest
+# 2. If provided, must be one of: question, discussion, share, help, meetup
+# 3. If omitted or null, server defaults to "discussion"
+# 4. Invalid category values → 400 Bad Request
+# 5. Category is immutable after creation (no PATCH endpoint)
+# 6. All response schemas (PostSummary) now include category field
+# 7. Backward compatible: existing posts default to "discussion"
+
+# ============================================================
+# NO NEW ENDPOINTS
+# ============================================================
+# Clustering is entirely client-side (Azure Maps DataSource).
+# No server-side clustering API is needed.
+# The cluster list panel reads from the local posts array.

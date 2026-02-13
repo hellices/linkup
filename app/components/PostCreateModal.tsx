@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { PostSummary } from "@/app/types";
+import type { PostSummary, PostCategory } from "@/app/types";
+import { CATEGORIES, CATEGORY_VALUES, DEFAULT_CATEGORY } from "@/app/lib/categories";
 
 interface PostCreateModalProps {
   lat: number | null;
@@ -27,6 +28,7 @@ export default function PostCreateModal({
   const [text, setText] = useState("");
   const [ttl, setTtl] = useState<string>("");
   const [tags, setTags] = useState("");
+  const [category, setCategory] = useState<PostCategory>(DEFAULT_CATEGORY);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +61,7 @@ export default function PostCreateModal({
           lat: postLat,
           lng: postLng,
           ttl,
+          category,
           tags: tagList.length > 0 ? tagList : undefined,
         }),
       });
@@ -76,19 +79,47 @@ export default function PostCreateModal({
       setError("Network error. Please try again.");
       setSaving(false);
     }
-  }, [canSave, text, ttl, tags, lat, lng, onCreated]);
+  }, [canSave, text, ttl, tags, lat, lng, category, onCreated]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/20 backdrop-blur-sm">
       <div className="bg-white/95 backdrop-blur-xl rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md sm:mx-4 p-6 zenly-bounce">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">💬 New Post</h2>
+          <h2 className="text-lg font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">{CATEGORIES[category].emoji} New Post</h2>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-400 transition-colors"
           >
             ✕
           </button>
+        </div>
+
+        {/* Category selector (FR-003) */}
+        <div className="mb-4">
+          <label className="text-xs font-semibold text-gray-400 mb-2 block">
+            📌 Post type
+          </label>
+          <div className="flex gap-1.5">
+            {CATEGORY_VALUES.map((cat) => {
+              const def = CATEGORIES[cat];
+              const isSelected = category === cat;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setCategory(cat)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all flex flex-col items-center gap-0.5 ${
+                    isSelected
+                      ? "text-white shadow-md scale-105"
+                      : "bg-gray-50 text-gray-400 hover:bg-gray-100"
+                  }`}
+                  style={isSelected ? { background: def.color } : undefined}
+                >
+                  <span className="text-base">{def.emoji}</span>
+                  {def.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Text input */}

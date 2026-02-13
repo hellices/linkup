@@ -2,6 +2,9 @@
 // Counts sentence-ending punctuation (. ? ! and Korean equivalents)
 // Excludes: URLs, ellipsis (...), abbreviations (e.g., i.e.)
 
+import { CATEGORY_VALUES, DEFAULT_CATEGORY } from "@/app/lib/categories";
+import type { PostCategory } from "@/app/types";
+
 const URL_PATTERN = /https?:\/\/\S+/g;
 const ELLIPSIS_PATTERN = /\.{2,}/g;
 const ABBREVIATION_PATTERN = /\b(e\.g\.|i\.e\.|etc\.|vs\.|Mr\.|Mrs\.|Dr\.|Prof\.)/gi;
@@ -83,4 +86,24 @@ export function calculateExpiresAt(
   };
   const expiresAt = new Date(base.getTime() + ms[ttl]);
   return expiresAt.toISOString();
+}
+
+/**
+ * Validate category field. Returns a valid PostCategory.
+ * If value is omitted/null/undefined, returns the default ("discussion").
+ * If value is invalid, returns { valid: false, error }.
+ */
+export function validateCategory(
+  value: unknown
+): { valid: true; category: PostCategory } | { valid: false; error: string } {
+  if (value === undefined || value === null || value === "") {
+    return { valid: true, category: DEFAULT_CATEGORY };
+  }
+  if (typeof value !== "string" || !CATEGORY_VALUES.includes(value as PostCategory)) {
+    return {
+      valid: false,
+      error: `Invalid category. Must be one of: ${CATEGORY_VALUES.join(", ")}`,
+    };
+  }
+  return { valid: true, category: value as PostCategory };
 }

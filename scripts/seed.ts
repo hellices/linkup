@@ -20,6 +20,7 @@ db.exec(`
     lat REAL NOT NULL,
     lng REAL NOT NULL,
     mode TEXT DEFAULT 'both',
+    category TEXT DEFAULT 'discussion' CHECK(category IN ('question','discussion','share','help','meetup')),
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     expiresAt TEXT NOT NULL
   );
@@ -46,6 +47,7 @@ const samples = [
     lat: 47.6423,
     lng: -122.1391,
     mode: "online",
+    category: "question",
     expiresAt: expires72h,
   },
   {
@@ -55,6 +57,7 @@ const samples = [
     lat: 47.6740,
     lng: -122.1215,
     mode: "both",
+    category: "help",
     expiresAt: expires7d,
   },
   {
@@ -64,6 +67,7 @@ const samples = [
     lat: 47.6500,
     lng: -122.1350,
     mode: "offline",
+    category: "discussion",
     expiresAt: expires7d,
   },
   {
@@ -73,6 +77,7 @@ const samples = [
     lat: 47.6800,
     lng: -122.1100,
     mode: "online",
+    category: "question",
     expiresAt: expires24h,
   },
   {
@@ -82,6 +87,7 @@ const samples = [
     lat: 47.6455,
     lng: -122.1302,
     mode: "offline",
+    category: "meetup",
     expiresAt: expires24h,
   },
   {
@@ -91,6 +97,7 @@ const samples = [
     lat: 47.6600,
     lng: -122.1400,
     mode: "both",
+    category: "discussion",
     expiresAt: expires72h,
   },
   {
@@ -100,6 +107,7 @@ const samples = [
     lat: 47.6700,
     lng: -122.1250,
     mode: "offline",
+    category: "meetup",
     expiresAt: expires7d,
   },
   {
@@ -109,13 +117,14 @@ const samples = [
     lat: 47.6550,
     lng: -122.1180,
     mode: "online",
+    category: "share",
     expiresAt: expires72h,
   },
 ];
 
 const insert = db.prepare(`
-  INSERT INTO posts (id, authorId, authorName, text, tags, lat, lng, mode, createdAt, expiresAt)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO posts (id, authorId, authorName, text, tags, lat, lng, mode, category, createdAt, expiresAt)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const insertMany = db.transaction(() => {
@@ -129,6 +138,7 @@ const insertMany = db.transaction(() => {
       s.lat,
       s.lng,
       s.mode,
+      s.category,
       now.toISOString(),
       s.expiresAt
     );
