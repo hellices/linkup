@@ -23,6 +23,7 @@ export function getDb(): Database.Database {
         lat REAL NOT NULL,
         lng REAL NOT NULL,
         mode TEXT DEFAULT 'both',
+        category TEXT DEFAULT 'discussion' CHECK (category IN ('question', 'discussion', 'share', 'help', 'meetup')),
         createdAt TEXT NOT NULL DEFAULT (datetime('now')),
         expiresAt TEXT NOT NULL
       );
@@ -39,6 +40,16 @@ export function getDb(): Database.Database {
       CREATE INDEX IF NOT EXISTS idx_posts_expires ON posts(expiresAt);
       CREATE INDEX IF NOT EXISTS idx_posts_location ON posts(lat, lng);
     `);
+
+    // Migration: add category column for existing databases (FR-009)
+    const columns = _db.pragma("table_info(posts)") as { name: string }[];
+    if (!columns.some((c) => c.name === "category")) {
+      _db.exec(
+        `ALTER TABLE posts ADD COLUMN category TEXT DEFAULT 'discussion'
+         CHECK (category IN ('question', 'discussion', 'share', 'help', 'meetup'))`
+      );
+      console.log("[DB] Migration: added category column to posts table");
+    }
 
     // Constitution 2.1: Mandatory TTL — "automatic deletion" on expiry.
     // Startup sweep deletes expired posts so data is not retained permanently.

@@ -6,6 +6,7 @@ import {
   validateCoordinates,
   calculateExpiresAt,
   validateSentences,
+  validateCategory,
 } from "@/app/lib/validation";
 import { v4 as uuidv4 } from "uuid";
 import { addEmbedding } from "@/app/lib/ai-foundry";
@@ -40,10 +41,11 @@ export async function GET(req: NextRequest) {
     )
     .all(swLat, neLat, swLng, neLng);
 
-  // Parse tags from JSON string
+  // Parse tags from JSON string + default category for legacy rows
   const parsed = (posts as Record<string, unknown>[]).map((p) => ({
     ...p,
     tags: p.tags ? JSON.parse(p.tags as string) : [],
+    category: (p.category as string) ?? "discussion",
   }));
 
   return NextResponse.json({ posts: parsed });
@@ -66,13 +68,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { text, lat, lng, tags, ttl, mode } = body as {
+  const { text, lat, lng, tags, ttl, mode, category } = body as {
     text?: string;
     lat?: number;
     lng?: number;
     tags?: string[];
     ttl?: string;
     mode?: string;
+    category?: string;
   };
 
   // Validate required fields
@@ -131,6 +134,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Validate category (FR-010)
+  const categoryResult = validateCategory(category);
+  if (!categoryResult.valid) {
+    return NextResponse.json(
+      { error: categoryResult.error, code: "INVALID_CATEGORY" },
+      { status: 400 }
+    );
+  }
+  const postCategory = categoryResult.category;
+
   // Validate mode
   const validModes = ["online", "offline", "both"];
   const postMode = mode && validModes.includes(mode) ? mode : "both";
@@ -142,8 +155,8 @@ export async function POST(req: NextRequest) {
   const db = getDb();
 
   db.prepare(
-    `INSERT INTO posts (id, authorId, authorName, text, tags, lat, lng, mode, createdAt, expiresAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO posts (id, authorId, authorName, text, tags, lat, lng, mode, category, createdAt, expiresAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     session.user.id,
@@ -153,6 +166,7 @@ export async function POST(req: NextRequest) {
     lat,
     lng,
     postMode,
+    postCategory,
     createdAt,
     expiresAt
   );
@@ -172,6 +186,7 @@ export async function POST(req: NextRequest) {
     lat,
     lng,
     mode: postMode,
+    category: postCategory,
     createdAt,
     expiresAt,
     interestedCount: 0,
