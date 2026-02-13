@@ -283,6 +283,9 @@ export default function MapView({
 
         // Initial viewport fetch — fires immediately for user's actual location
         fireViewport();
+
+        // Ensure an initial marker render once the map is ready
+        renderMarkers();
       });
 
       mapInstanceRef.current = map;
