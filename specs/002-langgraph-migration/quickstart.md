@@ -9,7 +9,7 @@
 ## 1. Install Dependencies
 
 ```bash
-npm install @langchain/langgraph@^1.1.4 @langchain/openai@^1.2.7 @langchain/core@^0.3.0
+npm install @langchain/langgraph@^1.1.4 @langchain/openai@^1.2.7 @langchain/core@^1.1.24
 ```
 
 Add `overrides` to `package.json` to ensure a single `@langchain/core` instance:

@@ -3,34 +3,24 @@
 **Feature**: 002-langgraph-migration  
 **Date**: 2025-02-12
 
-## External API Contract (UNCHANGED)
+## External API Contract (BREAKING CHANGE)
 
-The external API contract for `GET /api/posts/{postId}/suggestions` remains **completely unchanged**. The response schema is identical to the existing `CombinedSuggestionsResponse` type.
+The external API contract for `GET /api/posts/{postId}/suggestions` has been modified. The `docs` and `issues` fields have been removed from the `CombinedSuggestionsResponse` type, as the migration focuses only on M365 resources and similar posts.
 
-Refer to the existing OpenAPI spec at `specs/001-map-first-mvp/contracts/openapi.yaml` for the full endpoint definition.
+Refer to the existing OpenAPI spec at `specs/001-map-first-mvp/contracts/openapi.yaml` for the baseline endpoint definition.
 
-### Response Schema (unchanged)
+### Response Schema (modified)
 
 ```yaml
 CombinedSuggestionsResponse:
   type: object
-  required: [m365, docs, issues, posts, actionHint, source, unavailableSources]
+  required: [m365, posts, actionHint, source, unavailableSources]
   properties:
     m365:
       type: array
       items:
         $ref: '#/components/schemas/McpSuggestion'
       description: "PRIMARY — M365 internal resources"
-    docs:
-      type: array
-      items:
-        $ref: '#/components/schemas/McpSuggestion'
-      description: "SUPPLEMENTARY — documentation results"
-    issues:
-      type: array
-      items:
-        $ref: '#/components/schemas/McpSuggestion'
-      description: "SUPPLEMENTARY — GitHub issues"
     posts:
       type: array
       items:
@@ -51,9 +41,11 @@ CombinedSuggestionsResponse:
       description: "Sources that failed during retrieval"
 ```
 
+**Note**: The `docs` and `issues` fields present in the previous version have been removed.
+
 ## Internal Contract: Graph Module Interface
 
-The new `mcp-agent.ts` module exports the same function signature as the current `mcp-client.ts`:
+The `app/lib/agents/suggestions/` module exports the main function from `graph.ts` via the barrel export in `index.ts`:
 
 ```typescript
 /**
@@ -75,36 +67,31 @@ export async function getCombinedSuggestions(
 ): Promise<CombinedSuggestionsResponse>;
 ```
 
-### Backward Compatibility Shim
+### Import Pattern
 
-`mcp-client.ts` will be modified to re-export from `mcp-agent.ts`:
+The API route imports directly from the agent module:
 
 ```typescript
-// mcp-client.ts — backward compatibility shim
-export { getCombinedSuggestions } from "./mcp-agent";
+// app/api/posts/[postId]/suggestions/route.ts
+import { getCombinedSuggestions } from "@/app/lib/agents/suggestions";
 ```
 
-This ensures all existing imports (`import { getCombinedSuggestions } from "@/app/lib/mcp-client"`) continue to work without modification.
+Note: The previous `mcp-client.ts` has been removed as part of this migration.
 
 ## Internal Contract: Tool Wrappers
 
-`mcp-tools.ts` exports a function to create LangChain tool instances bound to an MCP client:
+`tools.ts` exports a function to create LangChain tool instances:
 
 ```typescript
 import { StructuredTool } from "@langchain/core/tools";
 
 /**
  * Create LangChain tool wrappers for all MCP tools.
- * Each tool delegates to client.callTool() internally.
+ * Each tool delegates to client.callTool() internally via runtime context.
  *
- * @param client - Connected MCP Client instance
- * @param postId - Post ID to exclude from search_posts results
  * @returns Array of LangChain StructuredTool instances
  */
-export function createMcpTools(
-  client: Client,
-  postId: string
-): StructuredTool[];
+export function createMcpTools(): StructuredTool[];
 ```
 
 ## Configuration Constants

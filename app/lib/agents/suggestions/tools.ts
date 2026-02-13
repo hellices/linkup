@@ -133,7 +133,7 @@ const generateActionHintTool = tool(
 );
 
 /**
- * Create all 5 LangChain tool wrappers for MCP tools.
+ * Create all 3 LangChain tool wrappers for MCP tools.
  * Tools access the MCP Client via LangGraph runtime context (config.context.mcpClient).
  */
 export function createMcpTools() {

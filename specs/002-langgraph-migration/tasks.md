@@ -29,10 +29,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T002 [P] Create 5 LangChain tool wrappers (`searchM365Tool`, `searchDocsTool`, `searchIssuesTool`, `searchPostsTool`, `generateActionHintTool`) with Zod input schemas delegating to `Client.callTool()` via runtime context in app/lib/agents/suggestions/tools.ts
+- [X] T002 [P] Create 3 LangChain tool wrappers (`searchM365Tool`, `searchPostsTool`, `generateActionHintTool`) with Zod input schemas delegating to `Client.callTool()` via runtime context in app/lib/agents/suggestions/tools.ts
 - [X] T003 [P] Create agent skeleton — imports, constants (`MAX_TOOL_ROUNDS=5`, `AGENT_TIMEOUT_MS=30000`, `RECURSION_LIMIT=12`), `SUGGESTIONS_SYSTEM_PROMPT`, and `createModel()` helper that instantiates `AzureChatOpenAI` from env vars in app/lib/agents/suggestions/graph.ts + prompt.ts
 
-**Checkpoint**: Foundation ready — `mcp-tools.ts` exports `createMcpTools()`, `mcp-agent.ts` has constants + model factory
+**Checkpoint**: Foundation ready — `tools.ts` exports `createMcpTools()`, `graph.ts` has constants + model factory
 
 ---
 
@@ -40,7 +40,7 @@
 
 **Goal**: Replace the manual `for` loop in `mcp-client.ts` with a LangGraph `StateGraph` agent that produces identical `CombinedSuggestionsResponse` output
 
-**Independent Test**: Create a post → open Suggestions panel → verify M365, docs, issues, posts, and action hint all render correctly
+**Independent Test**: Create a post → open Suggestions panel → verify M365, posts, and action hint all render correctly
 
 ### Implementation for User Story 1
 

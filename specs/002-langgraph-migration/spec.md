@@ -9,11 +9,11 @@
 
 ### User Story 1 - LLM-Driven Suggestion Retrieval Works Identically (Priority: P1)
 
-When a user posts a question on LinkUp, the system searches M365 internal resources, docs, issues, and similar posts via a LangGraph agent, generates an action hint, and displays results in the SuggestionsPanel. The output must be identical to the existing manual tool-use loop.
+When a user posts a question on LinkUp, the system searches M365 internal resources and similar posts via a LangGraph agent, generates an action hint, and displays results in the SuggestionsPanel. The output must be identical to the existing manual tool-use loop.
 
 **Why this priority**: The migration is only valid if core functionality behaves identically. If the response shape (CombinedSuggestionsResponse) changes, the UI and API contract break.
 
-**Independent Test**: Create a post and verify the Suggestions panel loads with M365 results, docs, issues, similar posts, and action hint displayed correctly.
+**Independent Test**: Create a post and verify the Suggestions panel loads with M365 results, similar posts, and action hint displayed correctly.
 
 **Acceptance Scenarios**:
 
@@ -98,11 +98,11 @@ A timeout is applied to the overall agent execution to prevent delays from infin
 
 - **FR-001**: The system MUST define the suggestion-generation agent using `StateGraph` from `@langchain/langgraph`. The graph is composed of explicit nodes (query expansion, search, deduplication, response formatting) and edges (including conditional routing).
 - **FR-002**: Agent state MUST include message history, search results, expanded query list, and execution metadata, leveraging LangGraph's `StateSchema` and `MessagesValue`.
-- **FR-003**: The system MUST wrap the existing 5 MCP tools (search_m365, search_docs, search_issues, search_posts, generate_action_hint) as LangChain tools and bind them to the agent. Existing MCP tool logic MUST NOT be modified.
+- **FR-003**: The system MUST wrap the existing 3 MCP tools (search_m365, search_posts, generate_action_hint) as LangChain tools and bind them to the agent. Existing MCP tool logic MUST NOT be modified.
 - **FR-004**: The agent MUST generate 2–3 diverse search queries in the query expansion node by analyzing the user's question. Queries include original keywords, synonyms/related terms, and broader conceptual terms.
 - **FR-005**: The agent MUST call all MCP search tools in the search node. search_m365 is called separately for each expanded query; other tools are called with the original or an appropriate query.
 - **FR-006**: The agent MUST merge multiple search results and remove duplicates in the deduplication node (by matching URL or title). The version with the better description is kept.
-- **FR-007**: The agent's final output MUST be fully compatible with the existing `CombinedSuggestionsResponse` type. The API contract (m365, docs, issues, posts, actionHint, source, unavailableSources) MUST NOT change.
+- **FR-007**: The agent's final output MUST be compatible with `CombinedSuggestionsResponse` type. Note: This migration removes the `docs` and `issues` fields from the response (breaking change - only m365, posts, actionHint, source, unavailableSources remain).
 - **FR-008**: When AI Foundry is unavailable, the system MUST automatically switch to the existing fallback pattern (hardcoded parallel MCP tool calls).
 - **FR-009**: A configurable timeout MUST be applied to the overall agent execution. On timeout, partial results are returned or the fallback path is triggered.
 - **FR-010**: Each node execution MUST emit structured logs (node name, elapsed time, tool call arguments/result summary).

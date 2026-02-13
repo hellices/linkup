@@ -10,7 +10,7 @@ Migrate the manual LLM orchestration loop in `app/lib/mcp-client.ts` to a LangGr
 ## Technical Context
 
 **Language/Version**: TypeScript 5.9, Node.js (Next.js 14 SSR)  
-**Primary Dependencies**: `@langchain/langgraph` ^1.1.4, `@langchain/openai` ^1.2.7, `@langchain/core` ^0.3.x (NEW); `@modelcontextprotocol/sdk` ^1.26.0, `openai` ^6.21.0 (EXISTING — `openai` SDK retained for embeddings + fallback)  
+**Primary Dependencies**: `@langchain/langgraph` ^1.1.4, `@langchain/openai` ^1.2.7, `@langchain/core` ^1.1.24 (NEW); `@modelcontextprotocol/sdk` ^1.26.0, `openai` ^6.21.0 (EXISTING — `openai` SDK retained for embeddings + fallback)  
 **Storage**: SQLite via `better-sqlite3` (unchanged); in-memory embedding cache (unchanged)  
 **Testing**: Manual E2E via `npm run dev` + Suggestions panel verification; `npx tsc --noEmit` for type-checking  
 **Target Platform**: Next.js 14 server-side (API routes, SSR), Windows dev / Linux deploy  

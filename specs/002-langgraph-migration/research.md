@@ -39,7 +39,7 @@
 - LangGraph's `ToolNode` and `model.bindTools()` require LangChain `StructuredTool` instances (created via `tool()` from `@langchain/core/tools`).
 - Each wrapper defines a Zod schema matching the MCP tool's input schema and calls `client.callTool()` internally, parsing the text content from the MCP response.
 - The MCP `Client` cannot be part of `StateSchema` (it's not serializable). LangGraph's `contextSchema` allows passing runtime dependencies like the MCP client without polluting the state.
-- The 5 existing MCP tools map to 5 LangChain tool wrappers. The MCP server code (`server.ts`, `tools/*.ts`) remains completely unchanged.
+- The 3 remaining MCP tools map to 3 LangChain tool wrappers. The MCP server code (`server.ts`, `tools/*.ts`) remains completely unchanged.
 
 **Alternatives considered**:
 - **Re-implement tool logic directly in LangChain tools**: Duplicates existing MCP tool code and loses the MCP server abstraction.
