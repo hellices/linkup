@@ -99,7 +99,7 @@ Next.js 14 (:3000) — Single Process, No Sidecar
 │   ├─ search_m365       Graph API (OneDrive/SP/  │
 │   │                    Mail) — PRIMARY source    │
 │   ├─ search_posts      Embedding cache + cosine │
-│   └─ gen_action_hint   GPT-4o-mini chat         │
+│   └─ generate_action_hint GPT-4o-mini chat     │
 │                                                 │
 │  AI Foundry:  text-embedding-3-small            │
 │               + gpt-4o-mini                     │
