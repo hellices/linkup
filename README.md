@@ -199,7 +199,7 @@ app/
 ├── lib/
 │   ├── agents/           # LangGraph reasoning agent
 │   │   └── suggestions/  #   StateGraph: prompt, tools, graph, fallback
-│   ├── mcp/              # MCP server + tools (search_m365, search_posts, action_hint)
+│   ├── mcp/              # MCP server + tools (search_m365, search_posts, generate_action_hint)
 │   ├── ai-foundry.ts     # AI Foundry client (embeddings + chat)
 │   ├── categories.ts     # Pin category definitions (emoji, color, label)
 │   └── db.ts             # SQLite schema + queries
