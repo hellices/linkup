@@ -28,6 +28,8 @@ export default function Home() {
   const [posts, setPosts] = useState<PostSummary[]>([]);
   const [searchResult, setSearchResult] =
     useState<SemanticSearchResponse | null>(null);
+  const [searchIndex, setSearchIndex] = useState(0);
+  const [focusPosition, setFocusPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [bbox, setBbox] = useState<{
     swLat: number;
     swLng: number;
@@ -101,6 +103,11 @@ export default function Home() {
         if (res.ok) {
           const data: SemanticSearchResponse = await res.json();
           setSearchResult(data);
+          setSearchIndex(0);
+          // Fly to first result
+          if (data.posts.length > 0) {
+            setFocusPosition({ lat: data.posts[0].lat, lng: data.posts[0].lng });
+          }
         }
       } catch {
         // silently fail
@@ -111,6 +118,8 @@ export default function Home() {
 
   const handleClearSearch = useCallback(() => {
     setSearchResult(null);
+    setSearchIndex(0);
+    setFocusPosition(null);
   }, []);
 
   // Client-side TTL: remove expired posts every 30s so stale pins disappear
@@ -138,6 +147,7 @@ export default function Home() {
             : null
         }
         currentUserId={session?.user?.id}
+        focusPosition={focusPosition}
         onMapClick={handleMapClick}
         onViewportChange={handleViewportChange}
       />
@@ -148,20 +158,49 @@ export default function Home() {
         <AuthButton />
       </div>
 
-      {/* Search result info */}
+      {/* Search result info + navigation */}
       {searchResult && (
-        <div className="absolute top-16 left-4 z-10 zenly-card px-4 py-2.5 text-sm zenly-bounce">
+        <div className="absolute top-16 left-4 z-10 zenly-card px-4 py-2.5 text-sm zenly-bounce flex items-center gap-2">
           <span className="font-semibold text-purple-500">
             ✨ {searchResult.posts.length} found
           </span>
           {searchResult.outOfBounds > 0 && (
-            <span className="text-gray-400 ml-2">
+            <span className="text-gray-400">
               · {searchResult.outOfBounds} outside map
             </span>
           )}
+          {searchResult.posts.length > 1 && (
+            <div className="flex items-center gap-1 ml-2 border-l border-gray-200 pl-2">
+              <button
+                onClick={() => {
+                  const newIdx = (searchIndex - 1 + searchResult.posts.length) % searchResult.posts.length;
+                  setSearchIndex(newIdx);
+                  const p = searchResult.posts[newIdx];
+                  setFocusPosition({ lat: p.lat, lng: p.lng });
+                }}
+                className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-xs transition-colors"
+              >
+                ‹
+              </button>
+              <span className="text-xs text-gray-500 font-medium min-w-[3ch] text-center">
+                {searchIndex + 1}/{searchResult.posts.length}
+              </span>
+              <button
+                onClick={() => {
+                  const newIdx = (searchIndex + 1) % searchResult.posts.length;
+                  setSearchIndex(newIdx);
+                  const p = searchResult.posts[newIdx];
+                  setFocusPosition({ lat: p.lat, lng: p.lng });
+                }}
+                className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-xs transition-colors"
+              >
+                ›
+              </button>
+            </div>
+          )}
           <button
             onClick={handleClearSearch}
-            className="ml-3 text-pink-400 hover:text-pink-500 font-medium transition-colors"
+            className="ml-2 text-pink-400 hover:text-pink-500 font-medium transition-colors"
           >
             Reset
           </button>

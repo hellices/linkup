@@ -1,7 +1,7 @@
 // T034: GET /api/search — AI Foundry semantic search + bbox refiltering
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/app/lib/db";
-import { generateEmbedding, getAllEmbeddings } from "@/app/lib/ai-foundry";
+import { generateEmbedding, getAllEmbeddings, getEmbeddingCacheSize, warmupEmbeddings } from "@/app/lib/ai-foundry";
 import { findTopK } from "@/app/lib/cosine";
 import type { PostSummary } from "@/app/types";
 
@@ -19,6 +19,17 @@ export async function GET(req: NextRequest) {
   }
   if ([swLat, swLng, neLat, neLng].some(isNaN)) {
     return NextResponse.json({ error: "Missing or invalid bbox parameters" }, { status: 400 });
+  }
+
+  // Warm up embedding cache with existing posts on first search
+  if (getEmbeddingCacheSize() === 0) {
+    const db = getDb();
+    const existingPosts = db
+      .prepare(`SELECT id, text FROM posts WHERE expiresAt > datetime('now')`)
+      .all() as { id: string; text: string }[];
+    if (existingPosts.length > 0) {
+      await warmupEmbeddings(existingPosts);
+    }
   }
 
   // Generate query embedding

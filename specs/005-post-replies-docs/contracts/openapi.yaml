@@ -1,0 +1,283 @@
+# Extends: /specs/001-map-first-mvp/contracts/openapi.yaml
+# Feature: 005-post-replies-docs — Post Replies & Document Sharing
+# Only new/modified paths and schemas are listed below.
+
+openapi: 3.1.0
+info:
+  title: LinkUp API — Post Replies & Document Sharing Extension
+  version: 0.3.0
+  description: >
+    New endpoints for text replies and M365 document sharing on posts.
+    Cursor-based pagination with "Load more" pattern.
+
+paths:
+  /posts/{postId}/replies:
+    get:
+      operationId: listReplies
+      summary: List replies on a post (paginated, newest first)
+      description: >
+        Returns replies for a post in reverse-chronological order.
+        Supports cursor-based pagination with 5 items per page.
+        Works on both active and expired posts (existing replies remain visible).
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+          description: Opaque cursor from a previous response's nextCursor field
+      responses:
+        "200":
+          description: Paginated list of replies
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedReplyResponse"
+        "404":
+          description: Post not found
+
+    post:
+      operationId: createReply
+      summary: Create a text reply on a post
+      description: >
+        Authenticated user posts a text reply (1–500 characters) on a non-expired post.
+        Returns the created reply.
+      security:
+        - entraId: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                  description: Reply text content
+      responses:
+        "201":
+          description: Reply created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reply"
+        "400":
+          description: Invalid request (empty text, exceeds 500 chars)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Post not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /posts/{postId}/replies/{replyId}:
+    delete:
+      operationId: deleteReply
+      summary: Delete own reply
+      description: >
+        Authenticated user deletes their own reply. Only the original author
+        can delete. Returns 403 if the caller is not the author.
+      security:
+        - entraId: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: replyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Reply deleted successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Not the reply author
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Reply not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /posts/{postId}/shared-documents:
+    get:
+      operationId: listSharedDocuments
+      summary: List shared documents on a post (paginated, oldest first)
+      description: >
+        Returns M365 documents shared on a post in chronological order.
+        Supports cursor-based pagination with 5 items per page.
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+          description: Opaque cursor from a previous response's nextCursor field
+      responses:
+        "200":
+          description: Paginated list of shared documents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedSharedDocumentResponse"
+        "404":
+          description: Post not found
+
+    post:
+      operationId: shareDocument
+      summary: Share an M365 document on a post
+      description: >
+        Authenticated user shares an M365 document link on a non-expired post.
+        Duplicate URLs on the same post are rejected with 409.
+      security:
+        - entraId: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, url, sourceType]
+              properties:
+                title:
+                  type: string
+                  maxLength: 500
+                  description: Document title from MCP suggestion
+                url:
+                  type: string
+                  format: uri
+                  description: Document URL from MCP suggestion
+                sourceType:
+                  type: string
+                  enum: [onedrive, sharepoint, email, link]
+                  description: Source type (M365 sub-source or user-submitted link)
+      responses:
+        "201":
+          description: Document shared successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharedDocument"
+        "400":
+          description: Invalid request (missing fields)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Post not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Document URL already shared on this post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    Reply:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        postId: { type: string, format: uuid }
+        authorId: { type: string }
+        authorName: { type: string }
+        text: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    SharedDocument:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        postId: { type: string, format: uuid }
+        sharerId: { type: string }
+        sharerName: { type: string }
+        title: { type: string }
+        url: { type: string, format: uri }
+        sourceType:
+          type: string
+          enum: [onedrive, sharepoint, email, link]
+        createdAt: { type: string, format: date-time }
+
+    PaginatedReplyResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Reply" }
+        nextCursor:
+          type: string
+          nullable: true
+          description: Opaque cursor for fetching the next page; null when no more items
+        hasMore:
+          type: boolean
+          description: Whether more items exist beyond the current page
+
+    PaginatedSharedDocumentResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/SharedDocument" }
+        nextCursor:
+          type: string
+          nullable: true
+          description: Opaque cursor for fetching the next page; null when no more items
+        hasMore:
+          type: boolean
+          description: Whether more items exist beyond the current page
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Authentication required (Entra ID token missing or expired)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

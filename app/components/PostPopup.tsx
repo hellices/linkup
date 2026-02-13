@@ -4,9 +4,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import type { PostSummary, CombinedSuggestionsResponse, PostCategory } from "@/app/types";
+import type { PostSummary, CombinedSuggestionsResponse, PostCategory, SharedDocument } from "@/app/types";
 import { CATEGORIES, DEFAULT_CATEGORY } from "@/app/lib/categories";
 import SuggestionsPanel from "./SuggestionsPanel";
+import RepliesDocumentsPanel from "./RepliesDocumentsPanel";
 
 interface PostPopupProps {
   post: PostSummary;
@@ -41,6 +42,13 @@ export default function PostPopup({
     useState<CombinedSuggestionsResponse | null>(null);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [engagementLoading, setEngagementLoading] = useState(false);
+  const [userIntent, setUserIntent] = useState<"interested" | "join" | null>(null);
+  const [interestedCount, setInterestedCount] = useState(post.interestedCount);
+  const [joinCount, setJoinCount] = useState(post.joinCount);
+  const [sharedUrls, setSharedUrls] = useState<Set<string>>(new Set());
+
+  // Callback to trigger shared-docs refetch in RepliesDocumentsPanel
+  const [refetchDocsTrigger, setRefetchDocsTrigger] = useState(0);
 
   const [timeRemaining, setTimeRemaining] = useState(() =>
     getTimeRemaining(post.expiresAt)
@@ -84,7 +92,45 @@ export default function PostPopup({
     };
   }, [post.id]);
 
-  // Handle engagement
+  // Fetch user's current engagement intent
+  useEffect(() => {
+    if (!session) return;
+    fetch(`/api/posts/${post.id}/engagement`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setUserIntent(data.intent ?? null);
+      })
+      .catch(() => {});
+  }, [post.id, session]);
+
+  // Handle sharing a document from SuggestionsPanel
+  const handleShareDocument = useCallback(
+    async (doc: { title: string; url: string; sourceType: string }) => {
+      if (!session) return;
+      try {
+        const res = await fetch(`/api/posts/${post.id}/shared-documents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(doc),
+        });
+        if (res.ok || res.status === 201) {
+          setSharedUrls((prev) => new Set(prev).add(doc.url));
+          // Trigger refetch of shared docs only (not full re-mount)
+          setRefetchDocsTrigger((k) => k + 1);
+        }
+      } catch {
+        // silently fail
+      }
+    },
+    [session, post.id]
+  );
+
+  // Track shared URLs from RepliesDocumentsPanel
+  const handleSharedUrlsChange = useCallback((urls: Set<string>) => {
+    setSharedUrls(urls);
+  }, []);
+
+  // Handle engagement — toggle (click same = undo, click different = switch)
   const handleEngagement = useCallback(
     async (intent: "interested" | "join") => {
       if (!session) {
@@ -100,6 +146,9 @@ export default function PostPopup({
         });
         if (res.ok) {
           const data = await res.json();
+          setUserIntent(data.intent ?? null);
+          setInterestedCount(data.interestedCount);
+          setJoinCount(data.joinCount);
           onEngagementUpdate(post.id, data.interestedCount, data.joinCount);
         }
       } catch {
@@ -182,28 +231,42 @@ export default function PostPopup({
         {currentUserId && post.authorId === currentUserId ? (
           <div className="text-xs text-gray-300 text-center py-3 bg-gray-50 rounded-2xl font-medium">
             My post
-            <span className="ml-3">👀 {post.interestedCount} · 🤝 {post.joinCount}</span>
+            <span className="ml-3">👀 {interestedCount} · 🤝 {joinCount}</span>
           </div>
         ) : (
           <>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <button
                 onClick={() => handleEngagement("interested")}
                 disabled={engagementLoading || !session || isExpired}
-                className="flex-1 py-3 rounded-2xl border-2 border-gray-100 text-sm text-gray-500 font-semibold hover:bg-gray-50 disabled:opacity-40 flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                className={`flex-1 py-3 rounded-2xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                  userIntent === "interested"
+                    ? "bg-purple-100 border-2 border-purple-400 text-purple-600 shadow-sm"
+                    : "border-2 border-gray-200 text-gray-500 hover:border-purple-200 hover:bg-purple-50"
+                } disabled:opacity-40`}
               >
                 👀 Interested
-                <span className="text-xs text-gray-300">({post.interestedCount})</span>
+                <span className={`text-xs ${userIntent === "interested" ? "text-purple-400" : "text-gray-300"}`}>({interestedCount})</span>
               </button>
               <button
                 onClick={() => handleEngagement("join")}
                 disabled={engagementLoading || !session || isExpired}
-                className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-pink-400 to-purple-500 text-white text-sm font-bold hover:from-pink-500 hover:to-purple-600 disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-lg shadow-pink-200/40 transition-all active:scale-95"
+                className={`flex-1 py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                  userIntent === "join"
+                    ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg shadow-pink-300/50 ring-2 ring-purple-300"
+                    : "bg-gradient-to-r from-pink-400 to-purple-500 text-white hover:from-pink-500 hover:to-purple-600 shadow-lg shadow-pink-200/40"
+                } disabled:opacity-40`}
               >
                 🤝 Join
-                <span className="text-xs text-pink-200">({post.joinCount})</span>
+                <span className={`text-xs ${userIntent === "join" ? "text-white" : "text-pink-200"}`}>({joinCount})</span>
               </button>
             </div>
+
+            {userIntent && (
+              <p className="text-[10px] text-gray-400 text-center font-medium">
+                Click again to undo
+              </p>
+            )}
 
             {!session && (
               <p className="text-xs text-gray-300 text-center font-medium">
@@ -217,6 +280,20 @@ export default function PostPopup({
         <SuggestionsPanel
           suggestions={suggestions}
           loading={suggestionsLoading}
+          onShareDocument={handleShareDocument}
+          sharedUrls={sharedUrls}
+          isExpired={isExpired}
+          isAuthenticated={!!session}
+        />
+
+        {/* Replies & Shared Documents */}
+        <RepliesDocumentsPanel
+          postId={post.id}
+          isExpired={isExpired}
+          currentUserId={currentUserId}
+          isAuthenticated={!!session}
+          onSharedUrlsChange={handleSharedUrlsChange}
+          refetchDocsTrigger={refetchDocsTrigger}
         />
       </div>
     </div>

@@ -104,3 +104,36 @@ Used GitHub Copilot (Claude Opus 4.6) to implement the LinkUp Map-First MVP.
 - `pointer-events: none` on snippet div ensures clicks pass through to marker click handler
 
 **Impact**: All 4 user stories implemented — solo pin snippets, cluster previews, occlusion avoidance, and search dimming — in ~80 lines of added code
+
+---
+
+## Case 6: Post Replies & Document Sharing (005-post-replies-docs)
+
+**Context**: Post interactions were limited to Interested/Join buttons. Feature 005 adds text replies and M365 document link sharing to the PostPopup, enabling richer collaboration.
+
+**How Copilot helped**:
+- Generated full spec → plan → research → data model → contracts → tasks pipeline using speckit workflow
+- Created 2 new SQLite tables (`replies`, `shared_documents`) with `ON DELETE CASCADE` for TTL compliance (Constitution 2.1)
+- Implemented 5 new API endpoints:
+  - `GET/POST /api/posts/[postId]/replies` — cursor-paginated replies (newest first), create with auth + expiry validation
+  - `DELETE /api/posts/[postId]/replies/[replyId]` — author-only delete with 403/404
+  - `GET/POST /api/posts/[postId]/shared-documents` — cursor-paginated docs (oldest first), create with auth + expiry + duplicate 409
+- Built `RepliesDocumentsPanel` component with:
+  - `useReducer` for optimistic reply submission (prepend → swap tempId on success, rollback + preserve input on failure)
+  - Stacked sections layout: "💬 Replies (N)" above "📎 Shared Documents (N)" with distinct headers and empty states
+  - Keyset cursor pagination with "Load more" buttons and loading spinners
+  - Delete own reply button with confirmation dialog
+  - Shared document display with source icon + sharer initial circle
+- Extended `SuggestionsPanel` with inline "Share" button per M365 item + "Shared ✓" emerald badge for already-shared docs
+- Wired cross-component share flow: SuggestionsPanel → PostPopup handler → POST API → RepliesDocumentsPanel re-fetch
+
+**Architecture decisions**:
+- Keyset pagination (not OFFSET) — stable under concurrent writes, O(page_size) with composite `(postId, createdAt, id)` indexes
+- Composite `createdAt|id` cursor, base64url-encoded — opaque to clients, handles sub-second collisions
+- `LIMIT N+1` pattern — avoids separate `COUNT(*)` for `hasMore` detection
+- `useReducer` over multiple `useState` — atomic state transitions for optimistic UI (R2.1)
+- Separate `useState` for reply input text — keystrokes don't re-render the list; preserved on submission failure (R2.3)
+- Stacked sections over tabs — both sections always visible for awareness (R3.4)
+- New API routes in separate files following existing `[postId]/` nesting pattern
+
+**Impact**: 4 user stories (text replies, M365 doc sharing, section separation, delete own reply), 4 new files created, 4 existing files modified, 21 tasks completed across 7 phases, zero type errors

@@ -6,11 +6,19 @@ import type { CombinedSuggestionsResponse } from "@/app/types";
 interface SuggestionsPanelProps {
   suggestions: CombinedSuggestionsResponse | null;
   loading: boolean;
+  onShareDocument?: (doc: { title: string; url: string; sourceType: string }) => void;
+  sharedUrls?: Set<string>;
+  isExpired?: boolean;
+  isAuthenticated?: boolean;
 }
 
 export default function SuggestionsPanel({
   suggestions,
   loading,
+  onShareDocument,
+  sharedUrls,
+  isExpired,
+  isAuthenticated,
 }: SuggestionsPanelProps) {
   if (loading) {
     return (
@@ -82,17 +90,40 @@ export default function SuggestionsPanel({
               {suggestions.m365.map((item, i) => {
                 const icon = item.source === "sharepoint" ? "📋"
                   : item.source === "email" ? "📧" : "📁";
+                const isShared = sharedUrls?.has(item.url);
+                const canShare = onShareDocument && isAuthenticated && !isExpired && !isShared;
                 return (
-                  <li key={i}>
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                    >
-                      {icon} {item.title}
-                    </a>
-                    <p className="text-xs text-gray-400 mt-0.5">{item.description}</p>
+                  <li key={i} className="flex items-start gap-1">
+                    <div className="flex-1 min-w-0">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        {icon} {item.title}
+                      </a>
+                      <p className="text-xs text-gray-400 mt-0.5">{item.description}</p>
+                    </div>
+                    {onShareDocument && (
+                      isShared ? (
+                        <span className="text-[10px] text-emerald-500 font-semibold whitespace-nowrap mt-0.5">
+                          Shared ✓
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => onShareDocument({
+                            title: item.title,
+                            url: item.url,
+                            sourceType: item.source ?? "onedrive",
+                          })}
+                          disabled={!canShare}
+                          className="text-[10px] text-purple-400 hover:text-purple-600 font-semibold whitespace-nowrap mt-0.5 disabled:opacity-40 transition-colors"
+                        >
+                          Share
+                        </button>
+                      )
+                    )}
                   </li>
                 );
               })}

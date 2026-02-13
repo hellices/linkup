@@ -223,6 +223,8 @@ interface MapViewProps {
   posts: PostSummary[];
   searchResultPostIds: Set<string> | null;
   currentUserId?: string;
+  /** When set, the map flies to this position (search result navigation) */
+  focusPosition?: { lat: number; lng: number } | null;
   onMapClick: (lat: number, lng: number) => void;
   onViewportChange: (
     swLat: number,
@@ -236,6 +238,7 @@ export default function MapView({
   posts,
   searchResultPostIds,
   currentUserId,
+  focusPosition,
   onMapClick,
   onViewportChange,
 }: MapViewProps) {
@@ -412,7 +415,18 @@ export default function MapView({
     markersRef.current = [];
 
     // T016: Compute clusters from pixel proximity (radius=50px)
-    const groups = computeClusters(currentPosts, map, 50);
+    // In search mode, cluster matching and non-matching posts separately
+    // so a cluster of 4 with 1 match shows as 1 highlighted pin + 3 dimmed cluster
+    let groups: { center: [number, number]; posts: PostSummary[] }[];
+    if (currentSearch) {
+      const matchedPosts = currentPosts.filter((p) => currentSearch.has(p.id));
+      const unmatchedPosts = currentPosts.filter((p) => !currentSearch.has(p.id));
+      const matchedGroups = computeClusters(matchedPosts, map, 50);
+      const unmatchedGroups = computeClusters(unmatchedPosts, map, 50);
+      groups = [...matchedGroups, ...unmatchedGroups];
+    } else {
+      groups = computeClusters(currentPosts, map, 50);
+    }
 
     // T008: Compute snippet occlusion visibility for solo pins
     const soloPinData: { post: PostSummary; px: number; py: number }[] = [];
@@ -563,6 +577,18 @@ export default function MapView({
   useEffect(() => {
     renderMarkers();
   }, [posts, searchResultPostIds, renderMarkers]);
+
+  // Fly to focused position (search result navigation)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !focusPosition) return;
+    map.setCamera({
+      center: [focusPosition.lng, focusPosition.lat],
+      zoom: Math.max(map.getCamera().zoom ?? 14, 14),
+      type: "ease",
+      duration: 600,
+    });
+  }, [focusPosition]);
 
   // Auto-close popup if the selected post was removed (e.g., expired via client-side TTL cleanup)
   useEffect(() => {
