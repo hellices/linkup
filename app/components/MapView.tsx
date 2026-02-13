@@ -14,6 +14,16 @@ type AtlasMarker = any;
 // NOTE: Geolocation is deferred to component mount (not module load)
 // to avoid unexpected permission prompts during Next.js route prefetch.
 
+/** Escape HTML special characters to prevent XSS in HtmlMarker content */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /** T001: Truncate text to ~maxLen characters at a word boundary, appending "…" if needed. */
 function truncateSnippet(text: string, maxLen = 40): string {
   const cleaned = text.replace(/\s+/g, " ").trim();
@@ -41,7 +51,7 @@ function buildSpeechBubbleHtml(
     + `<div style="min-width:${pinSize}px;height:${pinSize}px;border-radius:12px;background:linear-gradient(135deg,${bgColor},${bgColor}dd);border:3px solid white;box-shadow:0 3px 12px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;position:relative;z-index:1">${emoji}</div>`
     + `<div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid ${tailColor};margin-top:-3px;position:relative;z-index:1"></div>`
     + (snippetText
-      ? `<div style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:500;color:#1f2937;text-align:center;line-height:1;margin-top:0px;pointer-events:none;background:#ffffff;padding:3px 8px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.18);border:1.5px solid rgba(0,0,0,0.08)">${snippetText}</div>`
+      ? `<div style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#374151;text-align:center;line-height:1.2;margin-top:2px;pointer-events:none">${escapeHtml(snippetText)}</div>`
       : '')
     + `</div>`;
 }
@@ -60,7 +70,7 @@ function buildClusterHtml(count: number, isHighlighted: boolean, isDimmed: boole
   return `<div style="cursor:pointer;opacity:${opacity};display:flex;align-items:center;justify-content:center;flex-direction:column">`
     + `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};border:3px solid white;box-shadow:0 3px 12px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:white">${count}</div>`
     + (snippetText && !isDimmed
-      ? `<div style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#374151;text-align:center;line-height:1.2;margin-top:4px">${snippetText}</div>`
+      ? `<div style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#374151;text-align:center;line-height:1.2;margin-top:4px">${escapeHtml(snippetText)}</div>`
         + (moreCount > 0
           ? `<div style="font-size:10px;color:#9ca3af;text-align:center;font-style:italic;margin-top:1px">+${moreCount} more</div>`
           : '')
@@ -553,6 +563,14 @@ export default function MapView({
   useEffect(() => {
     renderMarkers();
   }, [posts, searchResultPostIds, renderMarkers]);
+
+  // Auto-close popup if the selected post was removed (e.g., expired via client-side TTL cleanup)
+  useEffect(() => {
+    if (selectedPost && !posts.some(p => p.id === selectedPost.id)) {
+      setSelectedPost(null);
+      setPopupPosition(null);
+    }
+  }, [posts, selectedPost]);
 
   const handleClosePopup = useCallback(() => {
     setSelectedPost(null);
