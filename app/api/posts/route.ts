@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
         COALESCE((SELECT COUNT(*) FROM engagements WHERE postId = p.id AND intent = 'interested'), 0) as interestedCount,
         COALESCE((SELECT COUNT(*) FROM engagements WHERE postId = p.id AND intent = 'join'), 0) as joinCount
       FROM posts p
-      WHERE p.expiresAt > datetime('now')
+      WHERE datetime(p.expiresAt) > datetime('now')
         AND p.lat BETWEEN ? AND ?
         AND p.lng BETWEEN ? AND ?
       ORDER BY p.createdAt DESC`

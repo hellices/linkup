@@ -81,3 +81,26 @@ Used GitHub Copilot (Claude Opus 4.6) to implement the LinkUp Map-First MVP.
 - **`@langchain/core` singleton**: `overrides` in package.json prevents duplicate instances
 
 **Impact**: Manual 200+ line orchestration loop replaced with declarative graph; modular agent pattern established for future agents
+
+---
+
+## Case 5: Pin Text Preview (004-pin-text-preview)
+
+**Context**: Map pins showed only category emoji — users had to tap each pin to read post content. Feature 004 adds glanceable truncated text snippets below pin tails and on cluster markers.
+
+**How Copilot helped**:
+- Added `truncateSnippet()` helper — word-boundary truncation at ~40 chars with "…" ellipsis, whitespace normalization, hard-cut fallback for long words
+- Extended `buildSpeechBubbleHtml()` with `snippetText` parameter — renders a `<div>` with inline styles (`max-width:120px`, `text-overflow:ellipsis`, `11px` gray text) below the tail triangle; inherits pin opacity
+- Extended `buildClusterHtml()` with `snippetText` and `moreCount` — shows newest post's snippet + "+N more" italic label below the cluster count badge
+- Implemented `computeSnippetVisibility()` — greedy newest-first occlusion avoidance using pixel-space `SnippetRect` bounding boxes; prevents snippet-to-snippet and snippet-to-pin overlap
+- Integrated occlusion pass into `renderMarkers()` — collects solo-pin pixel positions and cluster bounding boxes, then selectively hides occluded snippets
+- Search dimming: dimmed pins pass empty `snippetText` (hidden snippet) and are excluded from occlusion input so they don't block visible pins' snippets
+
+**Architecture decisions**:
+- All changes in single file `app/components/MapView.tsx` — no new files, API endpoints, or dependencies
+- CSS + JS "belt and suspenders" truncation: JS pre-truncates at word boundary, CSS `text-overflow: ellipsis` as visual safety net for wide characters
+- Snippet positioned below tail (centered) — natural top-down flow, no `pixelOffset` change needed
+- Cluster snippet uses newest post (sorted by `createdAt` desc) — consistent with `ClusterListPanel` sort order
+- `pointer-events: none` on snippet div ensures clicks pass through to marker click handler
+
+**Impact**: All 4 user stories implemented — solo pin snippets, cluster previews, occlusion avoidance, and search dimming — in ~80 lines of added code

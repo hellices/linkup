@@ -9,6 +9,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-11
 - SQLite via `better-sqlite3` (unchanged); in-memory embedding cache (unchanged) (002-langgraph-migration)
 - TypeScript 5.9, Node.js (Next.js 14 SSR) + `azure-maps-control` ^3.7.2 (existing — speech-bubble HtmlMarkers + custom proximity-based clustering), `react` ^18.3.1, `next` ^14.2.35, `better-sqlite3` ^12.6.2, `zod` ^4.3.6 (003-pin-category-icons)
 - SQLite via `better-sqlite3` — `category TEXT` column added to `posts` table (003-pin-category-icons)
+- TypeScript 5.9, Node.js (Next.js 14 SSR) + `azure-maps-control` ^3.7.2 (HtmlMarker rendering), `react` ^18.3.1, `next` ^14.2.35 (004-pin-text-preview)
+- N/A — no storage changes; reads existing `PostSummary.text` field (004-pin-text-preview)
 
 - TypeScript 5.x / Node.js 18+ (001-map-first-mvp)
 
@@ -29,6 +31,7 @@ npm test; npm run lint
 TypeScript 5.x / Node.js 18+: Follow standard conventions
 
 ## Recent Changes
+- 004-pin-text-preview: Added TypeScript 5.9, Node.js (Next.js 14 SSR) + `azure-maps-control` ^3.7.2 (HtmlMarker rendering), `react` ^18.3.1, `next` ^14.2.35
 - 003-pin-category-icons: Added TypeScript 5.9, Node.js (Next.js 14 SSR) + `azure-maps-control` ^3.7.2 (existing — speech-bubble HtmlMarkers + custom proximity-based clustering), `react` ^18.3.1, `next` ^14.2.35, `better-sqlite3` ^12.6.2, `zod` ^4.3.6
 - 002-langgraph-migration: Added TypeScript 5.9, Node.js (Next.js 14 SSR) + `@langchain/langgraph` ^1.1.4, `@langchain/openai` ^1.2.7, `@langchain/core` ^1.1.24 (NEW); `@modelcontextprotocol/sdk` ^1.26.0, `openai` ^6.21.0 (EXISTING — `openai` SDK retained for embeddings + fallback)
 

@@ -54,7 +54,7 @@ export function getDb(): Database.Database {
     // Constitution 2.1: Mandatory TTL — "automatic deletion" on expiry.
     // Startup sweep deletes expired posts so data is not retained permanently.
     const deleted = _db
-      .prepare(`DELETE FROM posts WHERE expiresAt <= datetime('now')`)
+      .prepare(`DELETE FROM posts WHERE datetime(expiresAt) <= datetime('now')`)
       .run();
     if (deleted.changes > 0) {
       console.log(

@@ -1,4 +1,4 @@
-// T035: SuggestionsPanel — "Suggested via MCP" UI with categorized results + Action Hint
+// T035: SuggestionsPanel — "Copilot Suggestions" UI with categorized results + Action Hint
 "use client";
 
 import type { CombinedSuggestionsResponse } from "@/app/types";
@@ -16,7 +16,7 @@ export default function SuggestionsPanel({
     return (
       <div className="pt-4">
         <div className="text-xs font-bold text-purple-400 mb-2">
-          ✨ Suggested via MCP
+          ✨ Copilot Suggestions
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-300">
           <div className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
@@ -30,7 +30,7 @@ export default function SuggestionsPanel({
     return (
       <div className="pt-4">
         <div className="text-xs font-bold text-purple-400 mb-2">
-          ✨ Suggested via MCP
+          ✨ Copilot Suggestions
         </div>
         <p className="text-sm text-gray-300">No suggestions available</p>
       </div>
@@ -47,7 +47,7 @@ export default function SuggestionsPanel({
     return (
       <div className="pt-4">
         <div className="text-xs font-bold text-purple-400 mb-2">
-          ✨ Suggested via MCP
+          ✨ Copilot Suggestions
         </div>
         <p className="text-sm text-gray-300">No suggestions available</p>
       </div>
@@ -57,7 +57,7 @@ export default function SuggestionsPanel({
   return (
     <div className="pt-4">
       <div className="text-xs font-bold text-purple-400 mb-3">
-        ✨ Suggested via MCP
+        ✨ Copilot Suggestions
       </div>
 
       {/* Action Hint — FR-016: prominent placement at top */}

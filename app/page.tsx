@@ -2,7 +2,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import AuthButton from "@/app/components/AuthButton";
 import SearchBar from "@/app/components/SearchBar";
@@ -111,6 +111,20 @@ export default function Home() {
 
   const handleClearSearch = useCallback(() => {
     setSearchResult(null);
+  }, []);
+
+  // Client-side TTL: remove expired posts every 30s so stale pins disappear
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPosts((prev) => {
+        const now = Date.now();
+        const active = prev.filter(
+          (p) => new Date(p.expiresAt).getTime() > now
+        );
+        return active.length !== prev.length ? active : prev;
+      });
+    }, 30_000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
