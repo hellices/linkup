@@ -1,67 +1,18 @@
-// T028: search_docs tool — uses app's ai-foundry for embeddings + cosine utility
-import { readFileSync } from "fs";
-import { join } from "path";
-import { generateEmbedding } from "@/app/lib/ai-foundry";
-import { cosineSimilarity } from "@/app/lib/cosine";
-
-interface SampleDoc {
-  title: string;
-  url: string;
-  description: string;
-  vector: number[];
-}
-
-let _docs: SampleDoc[] | null = null;
-
-function loadDocs(): SampleDoc[] {
-  if (!_docs) {
-    const raw = readFileSync(
-      join(process.cwd(), "app", "lib", "mcp", "data", "sample-docs.json"),
-      "utf-8"
-    );
-    _docs = JSON.parse(raw);
-  }
-  return _docs!;
-}
+// search_docs tool — searches documentation sources
+// Currently returns empty results (no external doc source configured).
+// When a real documentation API is integrated, implement the search logic here.
 
 /**
- * Search docs by embedding the query and comparing against pre-embedded docs.
- * Fallback: if AI Foundry is unavailable, return all docs.
+ * Search docs for relevant resources.
+ * Returns empty array when no documentation source is configured.
  */
-export async function searchDocs(query: string): Promise<Array<{
+export async function searchDocs(_query: string): Promise<Array<{
   title: string;
   url: string;
   description: string;
   sourceType: "doc";
   status: "available";
 }>> {
-  const docs = loadDocs();
-
-  const queryVector = await generateEmbedding(query);
-
-  if (!queryVector) {
-    console.log("[search_docs] AI Foundry unavailable, returning all docs");
-    return docs.map((d) => ({
-      title: d.title,
-      url: d.url,
-      description: d.description,
-      sourceType: "doc" as const,
-      status: "available" as const,
-    }));
-  }
-
-  return docs
-    .map((d) => ({
-      ...d,
-      score: cosineSimilarity(queryVector, d.vector),
-    }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
-    .map((d) => ({
-      title: d.title,
-      url: d.url,
-      description: d.description,
-      sourceType: "doc" as const,
-      status: "available" as const,
-    }));
+  console.log("[search_docs] No documentation source configured — returning empty");
+  return [];
 }

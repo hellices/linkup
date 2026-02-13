@@ -14,8 +14,6 @@ Next.js 14 App (:3000) — single process
 │                                          │
 │ MCP Server (in-process, InMemoryTransport)│
 │  ├── search_m365      (PRIMARY: OneDrive/SharePoint/Email)
-│  ├── search_docs      (supplementary)    │
-│  ├── search_issues    (supplementary)    │
 │  ├── search_posts     (direct cache)     │
 │  └── generate_action_hint               │
 │                                          │
@@ -33,7 +31,7 @@ directly accessing the app's PostEmbedding cache, AI Foundry client, and DB.
 - **Map-First**: Full-screen map with post markers powered by Azure Maps
 - **3-Sentence Posts**: Sentence limit validation (excluding URLs/ellipsis), TTL required
 - **AI Foundry Semantic Search**: `text-embedding-3-small` embeddings → cosine similarity → map bbox re-filtering
-- **MCP Multi-Source**: **M365 internal resources (OneDrive/SharePoint/Email) as primary**, supplemented by web resources (Docs + Issues) + similar Posts → categorized display with "Suggested via MCP"
+- **MCP Multi-Source**: **M365 internal resources (OneDrive/SharePoint/Email) as primary** + similar Posts → categorized display with "Suggested via MCP"
 - **LLM-Driven Orchestration**: GPT-4o-mini discovers tools via `listTools()`, performs Multi-Query Expansion (2–3 diverse search queries), and decides which tools to call — no hardcoded tool selection
 - **Action Hint**: One-line next-action suggestion based on search results (highlighted style)
 - **Collaboration**: Interested / Join participation (idempotent, Interested→Join upgrade)
