@@ -211,16 +211,32 @@ export default function MapView({
       const coords = await geoPromise;
       if (coords) userCoordsRef.current = coords;
 
-      // Wait for Azure Maps SDK to load
-      const atlas = await new Promise<any>((resolve) => {
+      // Wait for Azure Maps SDK to load, but don't poll forever.
+      const atlas = await new Promise<any | null>((resolve) => {
+        const maxWaitMs = 10000; // 10s cap to avoid unbounded polling
+        const startTime = Date.now();
+
         const check = () => {
           const a = (window as any).atlas;
-          if (a) resolve(a);
-          else setTimeout(check, 100);
+          if (a) {
+            resolve(a);
+            return;
+          }
+
+          if (Date.now() - startTime >= maxWaitMs) {
+            // Give up after maxWaitMs; caller must handle null.
+            resolve(null);
+            return;
+          }
+
+          setTimeout(check, 100);
         };
+
         check();
       });
 
+      // If the SDK never became available, abort map init.
+      if (!atlas) return;
       if (!mapRef.current) return;
 
       const initCenter = coords
