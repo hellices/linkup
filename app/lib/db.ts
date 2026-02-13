@@ -31,6 +31,7 @@ export function getDb(): Database.Database {
       CREATE TABLE IF NOT EXISTS engagements (
         postId TEXT NOT NULL,
         userId TEXT NOT NULL,
+        userName TEXT NOT NULL DEFAULT '',
         intent TEXT NOT NULL CHECK (intent IN ('interested', 'join')),
         createdAt TEXT NOT NULL DEFAULT (datetime('now')),
         PRIMARY KEY (postId, userId),
@@ -39,6 +40,32 @@ export function getDb(): Database.Database {
 
       CREATE INDEX IF NOT EXISTS idx_posts_expires ON posts(expiresAt);
       CREATE INDEX IF NOT EXISTS idx_posts_location ON posts(lat, lng);
+
+      CREATE TABLE IF NOT EXISTS replies (
+        id TEXT PRIMARY KEY,
+        postId TEXT NOT NULL,
+        authorId TEXT NOT NULL,
+        authorName TEXT NOT NULL,
+        text TEXT NOT NULL,
+        createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS shared_documents (
+        id TEXT PRIMARY KEY,
+        postId TEXT NOT NULL,
+        sharerId TEXT NOT NULL,
+        sharerName TEXT NOT NULL,
+        title TEXT NOT NULL,
+        url TEXT NOT NULL,
+        sourceType TEXT NOT NULL CHECK (sourceType IN ('onedrive', 'sharepoint', 'email', 'link')),
+        createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE,
+        UNIQUE (postId, url)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_replies_post_created ON replies(postId, createdAt DESC, id);
+      CREATE INDEX IF NOT EXISTS idx_shared_docs_post_created ON shared_documents(postId, createdAt ASC, id);
     `);
 
     // Migration: add category column for existing databases (FR-009)
@@ -49,6 +76,45 @@ export function getDb(): Database.Database {
          CHECK (category IN ('question', 'discussion', 'share', 'help', 'meetup'))`
       );
       console.log("[DB] Migration: added category column to posts table");
+    }
+
+    // Migration: add userName column to engagements for existing databases
+    const engCols = _db.pragma("table_info(engagements)") as { name: string }[];
+    if (!engCols.some((c) => c.name === "userName")) {
+      _db.exec(`ALTER TABLE engagements ADD COLUMN userName TEXT NOT NULL DEFAULT ''`);
+      console.log("[DB] Migration: added userName column to engagements table");
+    }
+
+    // Migration: expand sourceType CHECK to include 'link' for user-shared documents
+    // SQLite can't ALTER CHECK constraints, so recreate the table if needed
+    try {
+      const tableInfo = _db.prepare(`SELECT sql FROM sqlite_master WHERE name = 'shared_documents'`).get() as { sql: string } | undefined;
+      if (tableInfo?.sql && !tableInfo.sql.includes("'link'")) {
+        const migrateSharedDocuments = _db.transaction(() => {
+          _db!.exec(`
+            CREATE TABLE shared_documents_new (
+              id TEXT PRIMARY KEY,
+              postId TEXT NOT NULL,
+              sharerId TEXT NOT NULL,
+              sharerName TEXT NOT NULL,
+              title TEXT NOT NULL,
+              url TEXT NOT NULL,
+              sourceType TEXT NOT NULL CHECK (sourceType IN ('onedrive', 'sharepoint', 'email', 'link')),
+              createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+              FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE,
+              UNIQUE (postId, url)
+            );
+            INSERT INTO shared_documents_new SELECT * FROM shared_documents;
+            DROP TABLE shared_documents;
+            ALTER TABLE shared_documents_new RENAME TO shared_documents;
+            CREATE INDEX IF NOT EXISTS idx_shared_docs_post_created ON shared_documents(postId, createdAt ASC, id);
+          `);
+        });
+        migrateSharedDocuments();
+        console.log("[DB] Migration: expanded shared_documents sourceType CHECK to include 'link'");
+      }
+    } catch {
+      // table may not exist yet or migration already applied
     }
 
     // Constitution 2.1: Mandatory TTL — "automatic deletion" on expiry.

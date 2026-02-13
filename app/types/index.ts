@@ -28,11 +28,12 @@ export interface Engagement {
   createdAt: string;
 }
 
-/** M365 sub-source identifier for UI icon/grouping */
+/** Document source identifier for UI icon/grouping */
 export type M365Source =
   | "onedrive"
   | "sharepoint"
-  | "email";
+  | "email"
+  | "link";
 
 export interface McpSuggestion {
   title: string;
@@ -74,4 +75,31 @@ export interface CreatePostRequest {
   ttl: "1m" | "24h" | "72h" | "7d";
   mode?: "online" | "offline" | "both";
   category?: PostCategory;
+}
+
+export interface Reply {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorName: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface SharedDocument {
+  id: string;
+  postId: string;
+  sharerId: string;
+  sharerName: string;
+  title: string;
+  url: string;
+  sourceType: M365Source;
+  createdAt: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  totalCount?: number;
 }

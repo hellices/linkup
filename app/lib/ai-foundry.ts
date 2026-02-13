@@ -108,3 +108,34 @@ export function removeEmbedding(postId: string): void {
 export function getAllEmbeddings(): PostEmbedding[] {
   return Array.from(embeddingCache.values());
 }
+
+/**
+ * Check if embeddings cache has been warmed up.
+ */
+export function getEmbeddingCacheSize(): number {
+  return embeddingCache.size;
+}
+
+/**
+ * Warm up embeddings cache with existing posts from DB.
+ * Called once on first search request to ensure seed/existing posts are searchable.
+ */
+let _warmupPromise: Promise<void> | null = null;
+export function warmupEmbeddings(posts: { id: string; text: string }[]): Promise<void> {
+  if (_warmupPromise) return _warmupPromise;
+  _warmupPromise = (async () => {
+    const toEmbed = posts.filter((p) => !embeddingCache.has(p.id));
+    if (toEmbed.length === 0) return;
+    console.log(`[AI Foundry] Warming up embeddings for ${toEmbed.length} existing post(s)...`);
+    // Process in parallel batches of 5 to avoid rate limits
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < toEmbed.length; i += BATCH_SIZE) {
+      const batch = toEmbed.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        batch.map((p) => addEmbedding(p.id, p.text).catch(() => {}))
+      );
+    }
+    console.log(`[AI Foundry] Warmup complete. Cache size: ${embeddingCache.size}`);
+  })();
+  return _warmupPromise;
+}
