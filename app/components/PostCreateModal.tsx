@@ -105,6 +105,7 @@ export default function PostCreateModal({
               const isSelected = category === cat;
               return (
                 <button
+                  type="button"
                   key={cat}
                   onClick={() => setCategory(cat)}
                   className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all flex flex-col items-center gap-0.5 ${

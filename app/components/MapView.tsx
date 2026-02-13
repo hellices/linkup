@@ -62,6 +62,24 @@ function computeClusters(
     return posts.map((p) => ({ center: [p.lng, p.lat] as [number, number], posts: [p] }));
   }
 
+  // Build a simple grid index in pixel space to avoid O(n²) all-pairs comparisons.
+  const cellSize = radius;
+  const grid = new Map<string, number[]>();
+  for (let i = 0; i < pixels.length; i++) {
+    const x = pixels[i][0];
+    const y = pixels[i][1];
+    const cx = Math.floor(x / cellSize);
+    const cy = Math.floor(y / cellSize);
+    const key = `${cx},${cy}`;
+    let bucket = grid.get(key);
+    if (!bucket) {
+      bucket = [];
+      grid.set(key, bucket);
+    }
+    bucket.push(i);
+  }
+
+  const radiusSq = radius * radius;
   const used = new Set<number>();
   const groups: { center: [number, number]; posts: PostSummary[] }[] = [];
 
@@ -70,13 +88,27 @@ function computeClusters(
     used.add(i);
     const members = [i];
 
-    for (let j = i + 1; j < posts.length; j++) {
-      if (used.has(j)) continue;
-      const dx = pixels[i][0] - pixels[j][0];
-      const dy = pixels[i][1] - pixels[j][1];
-      if (dx * dx + dy * dy < radius * radius) {
-        members.push(j);
-        used.add(j);
+    const x = pixels[i][0];
+    const y = pixels[i][1];
+    const cx = Math.floor(x / cellSize);
+    const cy = Math.floor(y / cellSize);
+
+    // Only compare against points in the same or neighboring grid cells.
+    for (let gx = cx - 1; gx <= cx + 1; gx++) {
+      for (let gy = cy - 1; gy <= cy + 1; gy++) {
+        const key = `${gx},${gy}`;
+        const bucket = grid.get(key);
+        if (!bucket) continue;
+        for (const j of bucket) {
+          if (j <= i) continue; // ensure each pair is considered once
+          if (used.has(j)) continue;
+          const dx = x - pixels[j][0];
+          const dy = y - pixels[j][1];
+          if (dx * dx + dy * dy < radiusSq) {
+            members.push(j);
+            used.add(j);
+          }
+        }
       }
     }
 
@@ -240,7 +272,7 @@ export default function MapView({
       if (group.posts.length === 1) {
         // Single post → speech-bubble marker
         const post = group.posts[0];
-        const category: PostCategory = (post.category as PostCategory) ?? DEFAULT_CATEGORY;
+        const category: PostCategory = post.category;
         const catDef = CATEGORIES[category];
 
         const isSearchResult =

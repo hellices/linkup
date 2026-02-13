@@ -90,6 +90,12 @@ No manual migration step is needed.
 1. If testing with an existing database that has posts without the `category` column
 2. Verify all existing posts display as 💬 Discussion (default)
 
+### 7. Geolocation on Map Load
+
+1. Open the app and allow browser location permission
+2. The map should smoothly animate to your current location (zoom 14)
+3. If permission is denied or unavailable, the map stays at the default Redmond, WA center
+
 ## API Testing
 
 ```bash
@@ -119,6 +125,7 @@ Note: These curl commands require authentication. In practice, test via the brow
 | `app/lib/validation.ts` | Add category validation |
 | `app/api/posts/route.ts` | Accept + validate `category` in POST, return in GET |
 | `app/components/PostCreateModal.tsx` | Add category selector UI |
-| `app/components/MapView.tsx` | Speech-bubble pins, DataSource clustering, cluster markers |
+| `app/components/MapView.tsx` | Speech-bubble pins, custom proximity-based clustering, cluster markers |
 | `app/components/ClusterListPanel.tsx` | **NEW** — Cluster post list panel |
 | `app/components/PostPopup.tsx` | Display category emoji + label |
+| `scripts/seed.ts` | Include category field on seeded sample posts |
