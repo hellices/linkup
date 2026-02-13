@@ -250,6 +250,10 @@ components:
         hasMore:
           type: boolean
           description: Whether more items exist beyond the current page
+        totalCount:
+          type: integer
+          nullable: true
+          description: Total number of items (only present on the first page response)
 
     PaginatedSharedDocumentResponse:
       type: object
@@ -264,6 +268,10 @@ components:
         hasMore:
           type: boolean
           description: Whether more items exist beyond the current page
+        totalCount:
+          type: integer
+          nullable: true
+          description: Total number of items (only present on the first page response)
 
     ErrorResponse:
       type: object

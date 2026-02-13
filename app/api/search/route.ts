@@ -21,14 +21,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing or invalid bbox parameters" }, { status: 400 });
   }
 
-  // Warm up embedding cache with existing posts on first search
+  // Warm up embedding cache with existing posts on first search (non-blocking)
   if (getEmbeddingCacheSize() === 0) {
     const db = getDb();
     const existingPosts = db
       .prepare(`SELECT id, text FROM posts WHERE expiresAt > datetime('now')`)
       .all() as { id: string; text: string }[];
     if (existingPosts.length > 0) {
-      await warmupEmbeddings(existingPosts);
+      // Fire-and-forget: don't block the first search request
+      warmupEmbeddings(existingPosts).catch(() => {});
     }
   }
 

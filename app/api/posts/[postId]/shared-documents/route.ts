@@ -134,7 +134,7 @@ export async function POST(
       { status: 400 }
     );
   }
-  if (title.length > 500) {
+  if (title.trim().length > 500) {
     return NextResponse.json(
       { error: "Title must not exceed 500 characters", code: "TITLE_TOO_LONG" },
       { status: 400 }

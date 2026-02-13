@@ -90,24 +90,27 @@ export function getDb(): Database.Database {
     try {
       const tableInfo = _db.prepare(`SELECT sql FROM sqlite_master WHERE name = 'shared_documents'`).get() as { sql: string } | undefined;
       if (tableInfo?.sql && !tableInfo.sql.includes("'link'")) {
-        _db.exec(`
-          CREATE TABLE shared_documents_new (
-            id TEXT PRIMARY KEY,
-            postId TEXT NOT NULL,
-            sharerId TEXT NOT NULL,
-            sharerName TEXT NOT NULL,
-            title TEXT NOT NULL,
-            url TEXT NOT NULL,
-            sourceType TEXT NOT NULL CHECK (sourceType IN ('onedrive', 'sharepoint', 'email', 'link')),
-            createdAt TEXT NOT NULL DEFAULT (datetime('now')),
-            FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE,
-            UNIQUE (postId, url)
-          );
-          INSERT INTO shared_documents_new SELECT * FROM shared_documents;
-          DROP TABLE shared_documents;
-          ALTER TABLE shared_documents_new RENAME TO shared_documents;
-          CREATE INDEX IF NOT EXISTS idx_shared_docs_post_created ON shared_documents(postId, createdAt ASC, id);
-        `);
+        const migrateSharedDocuments = _db.transaction(() => {
+          _db!.exec(`
+            CREATE TABLE shared_documents_new (
+              id TEXT PRIMARY KEY,
+              postId TEXT NOT NULL,
+              sharerId TEXT NOT NULL,
+              sharerName TEXT NOT NULL,
+              title TEXT NOT NULL,
+              url TEXT NOT NULL,
+              sourceType TEXT NOT NULL CHECK (sourceType IN ('onedrive', 'sharepoint', 'email', 'link')),
+              createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+              FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE,
+              UNIQUE (postId, url)
+            );
+            INSERT INTO shared_documents_new SELECT * FROM shared_documents;
+            DROP TABLE shared_documents;
+            ALTER TABLE shared_documents_new RENAME TO shared_documents;
+            CREATE INDEX IF NOT EXISTS idx_shared_docs_post_created ON shared_documents(postId, createdAt ASC, id);
+          `);
+        });
+        migrateSharedDocuments();
         console.log("[DB] Migration: expanded shared_documents sourceType CHECK to include 'link'");
       }
     } catch {

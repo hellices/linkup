@@ -178,6 +178,8 @@ export default function Home() {
                   const p = searchResult.posts[newIdx];
                   setFocusPosition({ lat: p.lat, lng: p.lng });
                 }}
+                aria-label="Previous result"
+                title="Previous result"
                 className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-xs transition-colors"
               >
                 ‹
@@ -192,6 +194,8 @@ export default function Home() {
                   const p = searchResult.posts[newIdx];
                   setFocusPosition({ lat: p.lat, lng: p.lng });
                 }}
+                aria-label="Next result"
+                title="Next result"
                 className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-xs transition-colors"
               >
                 ›

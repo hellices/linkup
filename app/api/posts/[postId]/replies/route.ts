@@ -129,7 +129,7 @@ export async function POST(
       { status: 400 }
     );
   }
-  if (text.length > 500) {
+  if (text.trim().length > 500) {
     return NextResponse.json(
       { error: "Reply text must not exceed 500 characters", code: "TEXT_TOO_LONG" },
       { status: 400 }

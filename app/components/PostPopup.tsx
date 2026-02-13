@@ -117,6 +117,9 @@ export default function PostPopup({
           setSharedUrls((prev) => new Set(prev).add(doc.url));
           // Trigger refetch of shared docs only (not full re-mount)
           setRefetchDocsTrigger((k) => k + 1);
+        } else if (res.status === 409) {
+          // Duplicate — still mark as shared in UI so button shows "Shared ✓"
+          setSharedUrls((prev) => new Set(prev).add(doc.url));
         }
       } catch {
         // silently fail

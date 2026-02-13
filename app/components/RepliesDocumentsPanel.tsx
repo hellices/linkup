@@ -196,20 +196,19 @@ export default function RepliesDocumentsPanel({
     fetch(`/api/posts/${postId}/shared-documents?cursor=${sharedDocs.nextCursor}`)
       .then((res) => (res.ok ? res.json() : Promise.reject("Failed")))
       .then((data: PaginatedResponse<SharedDocument>) => {
-        setSharedDocs((s) => ({
-          items: [...s.items, ...data.items],
-          nextCursor: data.nextCursor,
-          hasMore: data.hasMore,
-          loading: false,
-          totalCount: s.totalCount + data.items.length,
-        }));
-        // Update shared URLs
-        if (onSharedUrlsChange) {
-          setSharedDocs((s) => {
-            onSharedUrlsChange!(new Set(s.items.map((d) => d.url)));
-            return s;
-          });
-        }
+        setSharedDocs((prev) => {
+          const mergedItems = [...prev.items, ...data.items];
+          if (onSharedUrlsChange) {
+            onSharedUrlsChange(new Set(mergedItems.map((d) => d.url)));
+          }
+          return {
+            items: mergedItems,
+            nextCursor: data.nextCursor,
+            hasMore: data.hasMore,
+            loading: false,
+            totalCount: prev.totalCount,
+          };
+        });
       })
       .catch(() => {
         setSharedDocs((s) => ({ ...s, loading: false }));
@@ -321,19 +320,20 @@ export default function RepliesDocumentsPanel({
       }
 
       const doc: SharedDocument = await res.json();
-      // Add to local state
-      setSharedDocs((s) => ({
-        ...s,
-        items: [...s.items, doc],
-        totalCount: s.totalCount + 1,
-      }));
-      // Update parent URLs
-      if (onSharedUrlsChange) {
-        setSharedDocs((s) => {
-          onSharedUrlsChange!(new Set(s.items.map((d) => d.url)));
-          return s;
-        });
-      }
+      // Add to local state and reset pagination to avoid stale cursor
+      setSharedDocs((s) => {
+        const mergedItems = [...s.items, doc];
+        if (onSharedUrlsChange) {
+          onSharedUrlsChange(new Set(mergedItems.map((d) => d.url)));
+        }
+        return {
+          ...s,
+          items: mergedItems,
+          totalCount: s.totalCount + 1,
+          nextCursor: null,
+          hasMore: false,
+        };
+      });
       // Reset form
       setShareTitle("");
       setShareUrl("");
