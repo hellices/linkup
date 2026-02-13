@@ -64,6 +64,16 @@ function buildClusterHtml(count: number, isHighlighted: boolean, isDimmed: boole
     + `</div>`;
 }
 
+/** Build the HTML string for the user-location pin marker */
+function buildUserPinHtml(): string {
+  return `<div style="cursor:default;display:flex;flex-direction:column;align-items:center">`
+    + `<div style="width:32px;height:32px;border-radius:8px 8px 8px 0;background:linear-gradient(135deg,#3b82f6,#2563eb);border:3px solid white;box-shadow:0 3px 10px rgba(37,99,235,0.4);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center">`
+    + `<span style="transform:rotate(45deg);font-size:14px;color:white;font-weight:bold">📍</span>`
+    + `</div>`
+    + `<div style="width:8px;height:8px;border-radius:50%;background:rgba(59,130,246,0.35);margin-top:2px;animation:pulse-ring 2s ease-out infinite"></div>`
+    + `</div>`;
+}
+
 /** T016: Group nearby posts into clusters based on pixel distance */
 function computeClusters(
   posts: PostSummary[],
@@ -189,15 +199,9 @@ export default function MapView({
       if (userLocationMarkerRef.current) {
         map.markers.remove(userLocationMarkerRef.current);
       }
-      const pinHtml = `<div style="cursor:default;display:flex;flex-direction:column;align-items:center">`
-        + `<div style="width:32px;height:32px;border-radius:8px 8px 8px 0;background:linear-gradient(135deg,#3b82f6,#2563eb);border:3px solid white;box-shadow:0 3px 10px rgba(37,99,235,0.4);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center">`
-        + `<span style="transform:rotate(45deg);font-size:14px;color:white;font-weight:bold">📍</span>`
-        + `</div>`
-        + `<div style="width:8px;height:8px;border-radius:50%;background:rgba(59,130,246,0.35);margin-top:2px;animation:pulse-ring 2s ease-out infinite"></div>`
-        + `</div>`;
       const userMarker = new atlas.HtmlMarker({
         position: [lng, lat],
-        htmlContent: pinHtml,
+        htmlContent: buildUserPinHtml(),
         pixelOffset: [0, -24],
       });
       map.markers.add(userMarker);
@@ -414,21 +418,21 @@ export default function MapView({
       }
     });
 
-    // Re-add user location pin (it may have been removed by map internals)
+    // Re-add user location pin only if it was removed (e.g. by marker clear above)
     const uc = userCoordsRef.current;
-    if (uc) {
-      if (userLocationMarkerRef.current) {
-        try { map.markers.remove(userLocationMarkerRef.current); } catch { /* already removed */ }
+    if (uc && userLocationMarkerRef.current) {
+      const existing = map.markers.getMarkers?.();
+      const stillOnMap = existing
+        ? existing.includes(userLocationMarkerRef.current)
+        : false;
+      if (!stillOnMap) {
+        map.markers.add(userLocationMarkerRef.current);
       }
-      const pinHtml = `<div style="cursor:default;display:flex;flex-direction:column;align-items:center">`
-        + `<div style="width:32px;height:32px;border-radius:8px 8px 8px 0;background:linear-gradient(135deg,#3b82f6,#2563eb);border:3px solid white;box-shadow:0 3px 10px rgba(37,99,235,0.4);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center">`
-        + `<span style="transform:rotate(45deg);font-size:14px;color:white;font-weight:bold">📍</span>`
-        + `</div>`
-        + `<div style="width:8px;height:8px;border-radius:50%;background:rgba(59,130,246,0.35);margin-top:2px;animation:pulse-ring 2s ease-out infinite"></div>`
-        + `</div>`;
+    } else if (uc) {
+      // First render after coords arrived but before placeUserPin ran
       const userMarker = new atlas.HtmlMarker({
         position: [uc.lng, uc.lat],
-        htmlContent: pinHtml,
+        htmlContent: buildUserPinHtml(),
         pixelOffset: [0, -24],
       });
       map.markers.add(userMarker);
