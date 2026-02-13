@@ -16,18 +16,16 @@ type AtlasMarker = any;
 const geoPromise: Promise<{ lng: number; lat: number } | null> =
   typeof navigator !== "undefined" && navigator.geolocation
     ? new Promise((resolve) => {
-        // Race: resolve with coords or null after 3s timeout
-        const timeout = setTimeout(() => resolve(null), 3000);
         navigator.geolocation.getCurrentPosition(
           (pos) => {
-            clearTimeout(timeout);
             resolve({ lng: pos.coords.longitude, lat: pos.coords.latitude });
           },
           () => {
-            clearTimeout(timeout);
+            // Resolve with null only on actual error (e.g., denied permission),
+            // not on an arbitrary short timeout while the permission prompt is open.
             resolve(null);
           },
-          { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+          { enableHighAccuracy: false, maximumAge: 60000 }
         );
       })
     : Promise.resolve(null);
