@@ -5,8 +5,6 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { z } from "zod";
-import { searchDocs } from "./tools/search-docs";
-import { searchIssues } from "./tools/search-issues";
 import { searchPosts } from "./tools/search-posts";
 import { searchM365 } from "./tools/search-m365";
 import { generateActionHint } from "./tools/action-hint";
@@ -30,32 +28,6 @@ function createServer(accessToken?: string): McpServer {
     { query: z.string().describe("Search query text") },
     async ({ query }) => {
       const results = await searchM365(query, accessToken);
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(results) }],
-      };
-    }
-  );
-
-  // === SUPPLEMENTARY: Web resources search ===
-
-  server.tool(
-    "search_docs",
-    "Search Azure documentation for relevant resources. SUPPLEMENTARY — use in addition to M365 internal search.",
-    { query: z.string().describe("Search query text") },
-    async ({ query }) => {
-      const results = await searchDocs(query);
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(results) }],
-      };
-    }
-  );
-
-  server.tool(
-    "search_issues",
-    "Search GitHub issues for relevant problems and solutions. SUPPLEMENTARY — use in addition to M365 internal search.",
-    { query: z.string().describe("Search query text") },
-    async ({ query }) => {
-      const results = await searchIssues(query);
       return {
         content: [{ type: "text" as const, text: JSON.stringify(results) }],
       };

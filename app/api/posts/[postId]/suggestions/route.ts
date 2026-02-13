@@ -1,8 +1,8 @@
 // T033: GET /api/posts/[postId]/suggestions
-// Fetches post → calls MCP + AI Foundry → combines docs/issues/posts + actionHint
+// Fetches post → calls MCP + AI Foundry → combines m365/posts + actionHint
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/app/lib/db";
-import { getCombinedSuggestions } from "@/app/lib/mcp-client";
+import { getCombinedSuggestions } from "@/app/lib/agents/suggestions";
 import { auth } from "@/app/lib/auth";
 
 export async function GET(
@@ -34,12 +34,10 @@ export async function GET(
     // Full failure — graceful degrade
     return NextResponse.json({
       m365: [],
-      docs: [],
-      issues: [],
       posts: [],
       actionHint: null,
       source: "mcp",
-      unavailableSources: ["m365", "docs", "issues", "posts"],
+      unavailableSources: ["m365", "posts"],
     });
   }
 }

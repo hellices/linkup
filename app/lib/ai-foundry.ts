@@ -1,6 +1,6 @@
 // T023: AI Foundry client — embeddings (text-embedding-3-small) + chat (gpt-4o-mini for MCP tool orchestration)
 // Embeddings: used by /api/search for PostEmbedding cache
-// Chat: used by mcp-client.ts for LLM-driven MCP tool orchestration
+// Chat: used by agents/suggestions for LLM-driven MCP tool orchestration
 import OpenAI from "openai";
 import type { PostEmbedding } from "@/app/types";
 

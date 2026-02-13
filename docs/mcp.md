@@ -53,16 +53,16 @@ the LLM (GPT-4o-mini) discovers tools via `listTools()` and decides which ones t
 │  │  │ └─ chat (gpt-4o-mini)           │      │          │
 │  │  └──────────────┬──────────────────┘      │          │
 │  │                 │                          │          │
-│  │  ┌──────────────▼──┐ ┌────────────┐       │          │
-│  │  │ search_docs     │ │search_issue│       │          │
-│  │  │ embed→cos       │ │ embed→cos  │       │          │
-│  │  │ (3 docs)        │ │ (2 issues) │       │          │
-│  │  └─────────────────┘ └────────────┘       │          │
 │  │  ┌──────────────────┐ ┌─────────────┐     │          │
-│  │  │ search_posts     │ │gen_action   │     │          │
-│  │  │ direct memory    │ │  _hint      │     │          │
-│  │  │ getAllEmbeddings()│ │ GPT-4o-mini │     │          │
+│  │  │ search_m365      │ │search_posts │     │          │
+│  │  │ Graph Search API │ │direct memory│     │          │
+│  │  │ (OneDrive/SP/    │ │getAllEmbed() │     │          │
+│  │  │  Email)          │ │             │     │          │
 │  │  └──────────────────┘ └─────────────┘     │          │
+│  │  ┌──────────────────┐                     │          │
+│  │  │ gen_action_hint  │                     │          │
+│  │  │ GPT-4o-mini      │                     │          │
+│  │  └──────────────────┘                     │          │
 │  └────────────────────────────────────────────┘          │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -82,7 +82,7 @@ call based on the situation — that is the true MCP pattern.
 4. Send (system prompt + post text + tool list) to GPT-4o-mini
 5. LLM returns tool_calls → Execute on McpServer via callTool()
 6. Tool results → Feed back to LLM
-7. LLM returns final structured JSON (docs/issues/posts/actionHint)
+7. LLM returns final structured JSON (m365/posts/actionHint)
 8. Parse into CombinedSuggestionsResponse
 ```
 
@@ -100,7 +100,7 @@ call based on the situation — that is the true MCP pattern.
 directly connect Client and Server within the same process. Message passing in memory without network I/O.
 
 **Data Flow**:
-- `search_docs` / `search_issues`: Calls the app's `generateEmbedding()` → cosine similarity with pre-embedded JSON
+- `search_m365`: Calls Microsoft Graph Search API with user's access token → OneDrive files, SharePoint docs, Outlook emails
 - `search_posts`: Directly accesses the PostEmbedding cache via `getAllEmbeddings()` → cosine similarity → DB lookup (**HTTP callback eliminated**)
 - `generate_action_hint`: Directly uses the app's `getOrchestrationClient()` + `getChatDeploymentName()`
 
@@ -114,10 +114,10 @@ Why MCP is a "feature", not just a wrapper:
    decides which tools to call. When new tools are added, they are automatically discovered
    by simply registering them in the McpServer without modifying app code.
 
-2. **AI-Powered Semantic Search**: Uses the app's shared AI Foundry client to embed the query
-   and perform meaning-based search via cosine similarity against pre-embedded Docs/Issues.
+2. **M365 Internal Search**: Searches OneDrive files, SharePoint documents, and Outlook emails
+   via Microsoft Graph Search API — the primary source for internal knowledge.
 
-3. **Docs + Issues + Posts Combined**: The LLM decides to search Azure Docs, GitHub Issues,
+3. **M365 + Posts Combined**: The LLM decides to search M365 internal resources
    and similar posts simultaneously or selectively, and displays results by category.
 
 4. **Action Hint (GPT-4o-mini)**: Based on search results, GPT-4o-mini suggests a concrete next action
@@ -133,9 +133,7 @@ Why MCP is a "feature", not just a wrapper:
 
 | Tool | Input | Output | AI Usage | Source |
 |------|-------|--------|---------|--------|
-| `search_m365` | query string | McpSuggestion[] (max 10) | Microsoft Graph Search API | OneDrive + SharePoint + Email (실시간) |
-| `search_docs` | query string | McpSuggestion[] (max 3) | embed(query) → cosine | Pre-embedded Azure Docs JSON |
-| `search_issues` | query string | McpSuggestion[] (max 2) | embed(query) → cosine | Pre-embedded GitHub Issues JSON |
+| `search_m365` | query string | McpSuggestion[] (max 10) | Microsoft Graph Search API | OneDrive + SharePoint + Email (live) |
 | `search_posts` | query string, excludePostId? | McpSuggestion[] (max 5) | embed(query) → cosine | Direct PostEmbedding cache access |
 | `generate_action_hint` | postText, searchResults[] | string (1 line) | GPT-4o-mini chat | Template fallback on failure |
 
@@ -145,17 +143,16 @@ Why MCP is a "feature", not just a wrapper:
 User clicks marker → PostPopup opens
   → GET /api/posts/{id}/suggestions
   → connectInProcess() → InMemoryTransport linked pair
-  → listTools() → [search_docs, search_issues, search_posts, generate_action_hint]
+  → listTools() → [search_m365, search_posts, generate_action_hint]
   → Convert to OpenAI function-calling format
   → GPT-4o-mini: "Post says X. Which tools should I call?"
-  → LLM returns tool_calls: [search_docs(query), search_issues(query), search_posts(query)]
+  → LLM returns tool_calls: [search_m365(query), search_posts(query)]
   → callTool() for each → McpServer in-process execution:
-      ├─ search_docs: embed(query) → cosine vs docs → top 1~3
-      ├─ search_issues: embed(query) → cosine vs issues → top 0~2
+      ├─ search_m365: Graph Search API → OneDrive/SharePoint/Email → top 0~10
       └─ search_posts: direct access via getAllEmbeddings() → cosine → top 0~5
   → Tool results → LLM
   → LLM may call generate_action_hint(postText, results)
-  → LLM returns structured JSON: {docs, issues, posts, actionHint}
+  → LLM returns structured JSON: {m365, posts, actionHint}
   → Parse into CombinedSuggestionsResponse
   → SuggestionsPanel renders categorized results
 ```
@@ -165,7 +162,7 @@ User clicks marker → PostPopup opens
 | Scenario | Fallback |
 |------|----------|
 | LLM orchestration failure | Hardcoded parallel calls (existing pattern) |
-| AI Foundry embedding failure | Return all pre-embedded data |
+| AI Foundry embedding failure | `search_posts` returns empty array |
 | AI Foundry chat failure | Template-based hint generation |
 | PostEmbedding cache empty | `search_posts` returns empty array |
 | Total MCP connection failure | Display "No suggestions available" |

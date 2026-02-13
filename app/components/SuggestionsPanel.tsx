@@ -1,55 +1,11 @@
 // T035: SuggestionsPanel — "Suggested via MCP" UI with categorized results + Action Hint
 "use client";
 
-import type { CombinedSuggestionsResponse, McpSuggestion } from "@/app/types";
+import type { CombinedSuggestionsResponse } from "@/app/types";
 
 interface SuggestionsPanelProps {
   suggestions: CombinedSuggestionsResponse | null;
   loading: boolean;
-}
-
-function CategorySection({
-  title,
-  items,
-  unavailable,
-}: {
-  title: string;
-  items: McpSuggestion[];
-  unavailable: boolean;
-}) {
-  if (unavailable) {
-    return (
-      <div className="mb-3">
-        <h4 className="text-xs font-medium text-gray-400 mb-1">{title}</h4>
-        <p className="text-xs text-orange-400 italic">
-          {title} unavailable
-        </p>
-      </div>
-    );
-  }
-
-  if (items.length === 0) return null;
-
-  return (
-    <div className="mb-3">
-      <h4 className="text-xs font-medium text-gray-500 mb-1">{title}</h4>
-      <ul className="space-y-1">
-        {items.map((item, i) => (
-          <li key={i}>
-            <a
-              href={item.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block text-sm text-blue-600 hover:text-blue-800 hover:underline"
-            >
-              {item.title}
-            </a>
-            <p className="text-xs text-gray-400 mt-0.5">{item.description}</p>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
 }
 
 export default function SuggestionsPanel({
@@ -84,8 +40,6 @@ export default function SuggestionsPanel({
   const unavailableSources = new Set(suggestions.unavailableSources ?? []);
   const allEmpty =
     suggestions.m365.length === 0 &&
-    suggestions.docs.length === 0 &&
-    suggestions.issues.length === 0 &&
     suggestions.posts.length === 0 &&
     !suggestions.actionHint;
 
@@ -144,26 +98,6 @@ export default function SuggestionsPanel({
               })}
             </ul>
           )}
-        </div>
-      )}
-
-      {/* === SUPPLEMENTARY: Web Resources === */}
-      {(suggestions.docs.length > 0 || suggestions.issues.length > 0 ||
-        unavailableSources.has("docs") || unavailableSources.has("issues")) && (
-        <div className="mb-3">
-          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-            Web Resources
-          </div>
-          <CategorySection
-            title="📄 Docs"
-            items={suggestions.docs}
-            unavailable={unavailableSources.has("docs")}
-          />
-          <CategorySection
-            title="🐛 Issues"
-            items={suggestions.issues}
-            unavailable={unavailableSources.has("issues")}
-          />
         </div>
       )}
 

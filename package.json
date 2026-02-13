@@ -21,6 +21,9 @@
   "homepage": "https://github.com/hellices/linkup#readme",
   "dependencies": {
     "@azure/identity": "^4.13.0",
+    "@langchain/core": "^1.1.24",
+    "@langchain/langgraph": "^1.1.4",
+    "@langchain/openai": "^1.2.7",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^25.2.3",
@@ -45,5 +48,8 @@
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^10.0.0",
     "tsx": "^4.21.0"
+  },
+  "overrides": {
+    "@langchain/core": "$@langchain/core"
   }
 }
