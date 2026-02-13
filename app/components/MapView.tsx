@@ -11,6 +11,27 @@ import ClusterListPanel from "./ClusterListPanel";
 type AtlasMap = any;
 type AtlasMarker = any;
 
+// Start geolocation request at module load time (before React mounts)
+// so the position is likely ready by the time the map initializes.
+const geoPromise: Promise<{ lng: number; lat: number } | null> =
+  typeof navigator !== "undefined" && navigator.geolocation
+    ? new Promise((resolve) => {
+        // Race: resolve with coords or null after 3s timeout
+        const timeout = setTimeout(() => resolve(null), 3000);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            clearTimeout(timeout);
+            resolve({ lng: pos.coords.longitude, lat: pos.coords.latitude });
+          },
+          () => {
+            clearTimeout(timeout);
+            resolve(null);
+          },
+          { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+        );
+      })
+    : Promise.resolve(null);
+
 /** T010: Build speech-bubble HtmlMarker HTML with CSS border-trick tail */
 function buildSpeechBubbleHtml(
   emoji: string,
@@ -144,6 +165,8 @@ export default function MapView({
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<AtlasMap | null>(null);
   const markersRef = useRef<AtlasMarker[]>([]);
+  const userLocationMarkerRef = useRef<AtlasMarker | null>(null);
+  const userCoordsRef = useRef<{ lng: number; lat: number } | null>(null);
   const markerClickedRef = useRef(false);
   const postsRef = useRef<PostSummary[]>(posts);
   const searchRef = useRef<Set<string> | null>(searchResultPostIds);
@@ -162,85 +185,110 @@ export default function MapView({
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    const tryInit = () => {
+    const placeUserPin = (map: AtlasMap, lng: number, lat: number) => {
       const atlas = (window as any).atlas;
-      if (!atlas) {
-        // SDK not loaded yet, retry
-        setTimeout(tryInit, 100);
-        return;
+      if (!atlas) return;
+      if (userLocationMarkerRef.current) {
+        map.markers.remove(userLocationMarkerRef.current);
       }
+      const pinHtml = `<div style="cursor:default;display:flex;flex-direction:column;align-items:center">`
+        + `<div style="width:32px;height:32px;border-radius:8px 8px 8px 0;background:linear-gradient(135deg,#3b82f6,#2563eb);border:3px solid white;box-shadow:0 3px 10px rgba(37,99,235,0.4);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center">`
+        + `<span style="transform:rotate(45deg);font-size:14px;color:white;font-weight:bold">📍</span>`
+        + `</div>`
+        + `<div style="width:8px;height:8px;border-radius:50%;background:rgba(59,130,246,0.35);margin-top:2px;animation:pulse-ring 2s ease-out infinite"></div>`
+        + `</div>`;
+      const userMarker = new atlas.HtmlMarker({
+        position: [lng, lat],
+        htmlContent: pinHtml,
+        pixelOffset: [0, -24],
+      });
+      map.markers.add(userMarker);
+      userLocationMarkerRef.current = userMarker;
+    };
 
-      const map = new atlas.Map(mapRef.current!, {
-      center: [-122.1215, 47.6740], // Default fallback: Redmond, WA
-      zoom: 12,
-      language: "en-US",
-      authOptions: {
-        authType: atlas.AuthenticationType.subscriptionKey,
-        subscriptionKey: process.env.NEXT_PUBLIC_AZURE_MAPS_KEY ?? "",
-      },
-    });
+    // Wait for both geolocation (cached module-level promise) and atlas SDK,
+    // then create the map centred on the user's position from the start.
+    const initMap = async () => {
+      // Resolve geolocation (already started at module load — usually instant)
+      const coords = await geoPromise;
+      if (coords) userCoordsRef.current = coords;
 
-    // Move to user's current location via browser Geolocation API
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          map.setCamera({
-            center: [pos.coords.longitude, pos.coords.latitude],
-            zoom: 14,
-            type: "ease",
-            duration: 1000,
-          });
-        },
-        () => { /* Permission denied or error — keep default center */ },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    }
-
-    map.events.add("ready", () => {
-      // Map click → create post (only if not clicking a marker)
-      map.events.add("click", (e: any) => {
-        // If the click target is an HTML marker, skip
-        if (e.shapes && e.shapes.length > 0) return;
-        if (markerClickedRef.current) {
-          markerClickedRef.current = false;
-          return;
-        }
-        if (e.position) {
-          onMapClick(e.position[1], e.position[0]);
-        }
+      // Wait for Azure Maps SDK to load
+      const atlas = await new Promise<any>((resolve) => {
+        const check = () => {
+          const a = (window as any).atlas;
+          if (a) resolve(a);
+          else setTimeout(check, 100);
+        };
+        check();
       });
 
-      // Viewport change → load posts
-      const fireViewport = () => {
-        const bounds = map.getCamera().bounds;
-        if (bounds) {
-          const b = bounds;
-          onViewportChange(
-            atlas.data.BoundingBox.getSouth(b),
-            atlas.data.BoundingBox.getWest(b),
-            atlas.data.BoundingBox.getNorth(b),
-            atlas.data.BoundingBox.getEast(b)
-          );
+      if (!mapRef.current) return;
+
+      const initCenter = coords
+        ? [coords.lng, coords.lat]
+        : [-122.1215, 47.6740]; // Fallback: Redmond, WA
+      const initZoom = coords ? 14 : 12;
+
+      const map = new atlas.Map(mapRef.current!, {
+        center: initCenter,
+        zoom: initZoom,
+        language: "en-US",
+        authOptions: {
+          authType: atlas.AuthenticationType.subscriptionKey,
+          subscriptionKey: process.env.NEXT_PUBLIC_AZURE_MAPS_KEY ?? "",
+        },
+      });
+
+      map.events.add("ready", () => {
+        // Place user location pin
+        if (coords) {
+          placeUserPin(map, coords.lng, coords.lat);
         }
-      };
 
-      map.events.add("moveend", fireViewport);
-      map.events.add("zoomend", fireViewport);
+        // Map click → create post (only if not clicking a marker)
+        map.events.add("click", (e: any) => {
+          if (e.shapes && e.shapes.length > 0) return;
+          if (markerClickedRef.current) {
+            markerClickedRef.current = false;
+            return;
+          }
+          if (e.position) {
+            onMapClick(e.position[1], e.position[0]);
+          }
+        });
 
-      // T019: Re-render markers on move/zoom for clustering updates
-      map.events.add("moveend", () => renderMarkers());
-      map.events.add("zoomend", () => renderMarkers());
-      // T023: Auto-close cluster list panel on map movement
-      map.events.add("movestart", () => setClusterPosts(null));
+        // Viewport change → load posts for visible area
+        const fireViewport = () => {
+          const bounds = map.getCamera().bounds;
+          if (bounds) {
+            const b = bounds;
+            onViewportChange(
+              atlas.data.BoundingBox.getSouth(b),
+              atlas.data.BoundingBox.getWest(b),
+              atlas.data.BoundingBox.getNorth(b),
+              atlas.data.BoundingBox.getEast(b)
+            );
+          }
+        };
 
-      // Initial viewport fetch
-      setTimeout(fireViewport, 500);
-    });
+        map.events.add("moveend", fireViewport);
+        map.events.add("zoomend", fireViewport);
 
-    mapInstanceRef.current = map;
-    }; // end tryInit
+        // T019: Re-render markers on move/zoom for clustering updates
+        map.events.add("moveend", () => renderMarkers());
+        map.events.add("zoomend", () => renderMarkers());
+        // T023: Auto-close cluster list panel on map movement
+        map.events.add("movestart", () => setClusterPosts(null));
 
-    tryInit();
+        // Initial viewport fetch — fires immediately for user's actual location
+        fireViewport();
+      });
+
+      mapInstanceRef.current = map;
+    };
+
+    initMap();
 
     return () => {
       if (mapInstanceRef.current) {
@@ -348,6 +396,27 @@ export default function MapView({
         markersRef.current.push(marker);
       }
     });
+
+    // Re-add user location pin (it may have been removed by map internals)
+    const uc = userCoordsRef.current;
+    if (uc) {
+      if (userLocationMarkerRef.current) {
+        try { map.markers.remove(userLocationMarkerRef.current); } catch { /* already removed */ }
+      }
+      const pinHtml = `<div style="cursor:default;display:flex;flex-direction:column;align-items:center">`
+        + `<div style="width:32px;height:32px;border-radius:8px 8px 8px 0;background:linear-gradient(135deg,#3b82f6,#2563eb);border:3px solid white;box-shadow:0 3px 10px rgba(37,99,235,0.4);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center">`
+        + `<span style="transform:rotate(45deg);font-size:14px;color:white;font-weight:bold">📍</span>`
+        + `</div>`
+        + `<div style="width:8px;height:8px;border-radius:50%;background:rgba(59,130,246,0.35);margin-top:2px;animation:pulse-ring 2s ease-out infinite"></div>`
+        + `</div>`;
+      const userMarker = new atlas.HtmlMarker({
+        position: [uc.lng, uc.lat],
+        htmlContent: pinHtml,
+        pixelOffset: [0, -24],
+      });
+      map.markers.add(userMarker);
+      userLocationMarkerRef.current = userMarker;
+    }
   }, []);
 
   // Re-render markers when posts or search results change
