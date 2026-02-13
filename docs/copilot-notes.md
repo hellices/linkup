@@ -66,7 +66,7 @@ Used GitHub Copilot (Claude Opus 4.6) to implement the LinkUp Map-First MVP.
 - Created modular agent folder structure (`app/lib/agents/suggestions/`) with 6 files:
   - `types.ts` — `SuggestionsContext`, `SuggestionsState`
   - `prompt.ts` — system prompt with query expansion instructions
-  - `tools.ts` — 5 LangChain `tool()` wrappers delegating to MCP `Client.callTool()`
+  - `tools.ts` — 3 LangChain `tool()` wrappers delegating to MCP `Client.callTool()`
   - `fallback.ts` — hardcoded parallel MCP calls when LLM unavailable
   - `graph.ts` — `StateGraph` with 3 nodes (`llmCall`, `toolExec`, `formatResponse`), conditional edges, deduplication, `Promise.race` timeout, full entry point
   - `index.ts` — barrel re-exports
@@ -76,7 +76,7 @@ Used GitHub Copilot (Claude Opus 4.6) to implement the LinkUp Map-First MVP.
 **Architecture decisions**:
 - **Graph topology**: `START → llmCall → [shouldContinue] → toolExec ↔ llmCall → formatResponse → END`
 - **Agent folder pattern**: `app/lib/agents/{domain}/` with `types`, `prompt`, `tools`, `fallback`, `graph`, `index` — extensible for future agents
-- **Backward compatibility**: `mcp-client.ts` becomes a re-export shim; no API route or UI changes needed
+- **Backward compatibility**: `mcp-client.ts` removed; API route updated to import the LangGraph suggestions agent from `app/lib/agents/suggestions`
 - **Fallback preserved**: `fallbackDirectCalls()` invoked when (1) no LLM env vars, (2) graph throws, (3) wall-clock timeout (30s)
 - **`@langchain/core` singleton**: `overrides` in package.json prevents duplicate instances
 

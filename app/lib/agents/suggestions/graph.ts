@@ -205,7 +205,7 @@ export async function getCombinedSuggestions(
       messages: [
         new SystemMessage(SUGGESTIONS_SYSTEM_PROMPT),
         new HumanMessage(
-          `Post text: "${postText}"\nPost ID (exclude from similar posts search): ${postId}\n\nFind relevant docs, issues, and similar posts, then suggest an action.`
+          `Post text: "${postText}"\nPost ID (exclude from similar posts search): ${postId}\n\nFind relevant M365 resources and similar posts, then suggest an action.`
         ),
       ],
     };

@@ -13,7 +13,7 @@ The core runtime state managed by the LangGraph `StateGraph`. Defined using `Sta
 
 ```typescript
 import { StateSchema, MessagesValue, ReducedValue } from "@langchain/langgraph";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const AgentState = new StateSchema({
   // Chat message history (LLM ↔ tool exchanges)
@@ -47,7 +47,7 @@ Passed via LangGraph's `context` configuration at `graph.invoke()` time. Not ser
 
 ## MCP Tool Wrappers (LangChain Tools)
 
-Five LangChain `tool()` instances that delegate to the MCP server via `Client.callTool()`. Each wrapper:
+Three LangChain `tool()` instances that delegate to the MCP server via `Client.callTool()`. Each wrapper:
 1. Defines a Zod input schema matching the MCP tool's schema
 2. Accesses the MCP `Client` from runtime context (`config.context.mcpClient`)
 3. Calls `client.callTool()` and extracts the text content
@@ -56,8 +56,6 @@ Five LangChain `tool()` instances that delegate to the MCP server via `Client.ca
 | Wrapper | MCP Tool | Input Schema | Output |
 |---------|----------|-------------|--------|
 | `searchM365Tool` | `search_m365` | `{ query: string }` | JSON string of `McpSuggestion[]` |
-| `searchDocsTool` | `search_docs` | `{ query: string }` | JSON string of `McpSuggestion[]` |
-| `searchIssuesTool` | `search_issues` | `{ query: string }` | JSON string of `McpSuggestion[]` |
 | `searchPostsTool` | `search_posts` | `{ query: string, excludePostId?: string }` | JSON string of `PostSummary[]` |
 | `generateActionHintTool` | `generate_action_hint` | `{ postText: string, searchResults: Array<{title, description, sourceType}> }` | Action hint string |
 
